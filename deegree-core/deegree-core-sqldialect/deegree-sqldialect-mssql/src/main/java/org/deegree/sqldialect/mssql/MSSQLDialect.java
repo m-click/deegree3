@@ -35,15 +35,19 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.sqldialect.mssql;
 
+import static java.util.Collections.emptyList;
+
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collection;
 import java.util.List;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
+import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.primitive.PrimitiveType;
 import org.deegree.commons.tom.sql.DefaultPrimitiveConverter;
 import org.deegree.commons.tom.sql.PrimitiveParticleConverter;
@@ -56,15 +60,19 @@ import org.deegree.filter.sort.SortProperty;
 import org.deegree.geometry.Envelope;
 import org.deegree.geometry.GeometryFactory;
 import org.deegree.geometry.utils.GeometryParticleConverter;
+import org.deegree.sqldialect.AbstractSQLDialect;
 import org.deegree.sqldialect.SQLDialect;
 import org.deegree.sqldialect.filter.AbstractWhereBuilder;
 import org.deegree.sqldialect.filter.PropertyNameMapper;
 import org.deegree.sqldialect.filter.UnmappableException;
 import org.deegree.sqldialect.filter.mssql.MSSQLGeometryConverter;
 import org.deegree.sqldialect.filter.mssql.MSSQLWhereBuilder;
+import org.deegree.sqldialect.table.ColumnDefinition;
+import org.deegree.sqldialect.table.GeometryColumnDefinition;
+import org.deegree.sqldialect.table.PrimitiveColumnDefinition;
+import org.deegree.sqldialect.table.TableDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.deegree.sqldialect.AbstractSQLDialect;
 
 /**
  * {@link SQLDialect} for Microsoft SQL databases.
@@ -198,6 +206,70 @@ public class MSSQLDialect extends AbstractSQLDialect implements SQLDialect {
     public String getSelectSequenceNextVal( String sequence ) {
         throw new UnsupportedOperationException(
                                                  "Using DB sequences for FIDs is currently not supported on Microsoft SQL Server." );
+    }
+
+    @Override
+    protected String getCreateSnippet( final ColumnDefinition column ) {
+        final StringBuilder sql = new StringBuilder();
+        sql.append( column.getName() );
+        sql.append( ' ' );
+        if ( column instanceof GeometryColumnDefinition ) {
+            sql.append ("geometry");
+            return sql.toString();
+        }
+        final PrimitiveColumnDefinition primitiveColumn = (PrimitiveColumnDefinition) column;
+        sql.append( getDBType( primitiveColumn.getType() ) );
+        if ( primitiveColumn.getIsNotNull() ) {
+            sql.append( " NOT NULL" );
+        }
+        if ( primitiveColumn.getReferencedTable() != null ) {
+            sql.append( " REFERENCES " );
+            sql.append( primitiveColumn.getReferencedTable().toString() );
+            if ( primitiveColumn.getIsCascadeOnDelete() ) {
+                sql.append( " ON DELETE CASCADE" );
+            }
+        }
+        return sql.toString();
+    }
+
+    @Override
+    protected Collection<String> getAdditionalCreateStatements( final ColumnDefinition column,
+                                                                final TableDefinition table ) {
+        return emptyList();
+    }
+
+    @Override
+    public String getDBType( final BaseType type ) {
+        String dbType = null;
+        switch ( type ) {
+        case BOOLEAN:
+            dbType = "bit";
+            break;
+        case DATE:
+            dbType = "date";
+            break;
+        case DATE_TIME:
+            dbType = "datetime";
+            break;
+        case DECIMAL:
+            dbType = "numeric";
+            break;
+        case DOUBLE:
+            dbType = "float";
+            break;
+        case INTEGER:
+            dbType = "bigint";
+            break;
+        case STRING:
+            dbType = "varchar(2000)";
+            break;
+        case TIME:
+            dbType = "time";
+            break;
+        default:
+            throw new RuntimeException( "Internal error. Unhandled primitive type '" + type + "'." );
+        }
+        return dbType;
     }
 
 }

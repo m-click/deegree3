@@ -35,6 +35,7 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql;
 
+import static org.deegree.commons.utils.JDBCUtils.close;
 import static org.deegree.commons.xml.CommonNamespaces.OGCNS;
 import static org.deegree.commons.xml.CommonNamespaces.XLNNS;
 import static org.deegree.commons.xml.CommonNamespaces.XSINS;
@@ -96,6 +97,7 @@ import org.deegree.feature.persistence.sql.blob.FeatureBuilderBlob;
 import org.deegree.feature.persistence.sql.config.AbstractMappedSchemaBuilder;
 import org.deegree.feature.persistence.sql.converter.CustomParticleConverter;
 import org.deegree.feature.persistence.sql.converter.FeatureParticleConverter;
+import org.deegree.feature.persistence.sql.ddl.TableSetupHelper;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
 import org.deegree.feature.persistence.sql.id.IdAnalysis;
 import org.deegree.feature.persistence.sql.jaxb.CustomConverterJAXB;
@@ -1624,6 +1626,21 @@ public class SQLFeatureStore implements FeatureStore {
             schema = AbstractMappedSchemaBuilder.build( configURL.toString(), config, dialect, this.workspace );
         } catch ( Exception t ) {
             throw new ResourceInitException( t.getMessage(), t );
+        }
+
+        if ( config.getTableSetup() != null ) {
+            Connection conn = null;
+            try {
+                conn = getConnection();
+                new TableSetupHelper( conn ).setupTables( config.getTableSetup(), schema, dialect );
+            } catch ( SQLException e ) {
+                final String msg = "Error setting up tables: " + e.getMessage();
+                LOG.error( msg, e );
+                LOG.trace( "Stack trace:", e );
+                throw new ResourceInitException( msg );
+            } finally {
+                close( conn );
+            }
         }
 
         // lockManager = new DefaultLockManager( this, "LOCK_DB" );

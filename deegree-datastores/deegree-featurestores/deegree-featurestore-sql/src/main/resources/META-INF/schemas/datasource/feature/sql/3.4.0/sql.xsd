@@ -75,6 +75,15 @@
             turns the cache on). In the future, this may be extended. -->
           <complexType />
         </element>
+        <element name="TableSetup" minOccurs="0">
+          <complexType>
+            <sequence>
+              <element name="TestSql" type="string" minOccurs="1" />
+              <element name="Sql" type="string" minOccurs="0" maxOccurs="unbounded" />
+            </sequence>
+            <attribute name="deriveTablesFromMapping" type="boolean" default="true" />
+          </complexType>
+        </element>
       </sequence>
       <attribute name="configVersion" use="required">
         <simpleType>

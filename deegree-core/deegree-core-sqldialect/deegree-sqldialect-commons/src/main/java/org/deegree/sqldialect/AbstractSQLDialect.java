@@ -35,6 +35,15 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.sqldialect;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import org.deegree.commons.jdbc.TableName;
+import org.deegree.sqldialect.table.ColumnDefinition;
+import org.deegree.sqldialect.table.PrimitiveColumnDefinition;
+import org.deegree.sqldialect.table.TableDefinition;
+
 /**
  * Implementations provide the vendor-specific behavior for a spatial DBMS so it can be accessed by deegree.
  *
@@ -44,7 +53,7 @@ package org.deegree.sqldialect;
  */
 public abstract class AbstractSQLDialect implements SQLDialect{
 
-    private char defaultEscapeChar =  Character.UNASSIGNED;
+    private char defaultEscapeChar = Character.UNASSIGNED;
 
     @Override
     public char getLeadingEscapeChar() {
@@ -54,6 +63,90 @@ public abstract class AbstractSQLDialect implements SQLDialect{
     @Override
     public char getTailingEscapeChar() {
         return defaultEscapeChar;
+    }
+
+    @Override
+    public Collection<String> getCreateTableStatements( final TableDefinition table ) {
+        final Collection<String> statements = new ArrayList<String>();
+        statements.add( getPrimaryCreateTableStatement( table ) );
+        statements.addAll( getAdditionalCreateTableStatements( table ) );
+        return statements;
+    }
+
+    protected String getPrimaryCreateTableStatement( final TableDefinition table ) {
+        final StringBuilder sql = new StringBuilder();
+        sql.append( "CREATE TABLE " );
+        sql.append( table.getName() );
+        sql.append( " (" );
+        boolean first = true;
+        for ( final ColumnDefinition column : table.getColumns() ) {
+            final String columnSqlSnippet = getCreateSnippet( column );
+            if ( columnSqlSnippet != null ) {
+                if ( !first ) {
+                    sql.append( "," );
+                } else {
+                    first = false;
+                }
+                sql.append( "\n  " );
+                sql.append( columnSqlSnippet );
+            }
+        }
+        final List<PrimitiveColumnDefinition> pkColumns = table.getPrimaryKeyColumns();
+        if ( !pkColumns.isEmpty() ) {
+            sql.append( ",\n  CONSTRAINT " );
+            sql.append( getPkConstraintName( table.getName() ) );
+            sql.append( " PRIMARY KEY (" );
+            first = true;
+            for ( final ColumnDefinition pkColumn : pkColumns ) {
+                if ( !first ) {
+                    sql.append( "," );
+                } else {
+                    first = false;
+                }
+                sql.append( pkColumn.getName() );
+            }
+            sql.append( ')' );
+        }
+        sql.append( "\n)" );
+        return sql.toString();
+    }
+
+    protected Collection<String> getAdditionalCreateTableStatements( final TableDefinition table ) {
+        final Collection<String> stmts = new ArrayList<String>();
+        for ( final ColumnDefinition column : table.getColumns() ) {
+            stmts.addAll( getAdditionalCreateStatements( column, table ) );
+        }
+        return stmts;
+    }
+
+    /**
+     * Returns the SQL snippet for creating the given column.
+     *
+     * @param column
+     *            column definition, must not be <code>null</code>
+     * @return SQL snippet for creating the given column, can be <code>null</code>
+     */
+    protected abstract String getCreateSnippet( final ColumnDefinition column );
+
+    /**
+     * Returns additional SQL statements for creating the given column.
+     *
+     * @param column
+     *            column definition, must not be <code>null</code>
+     * @return SQL statements for creating the given column, can be empty, but never <code>null</code>
+     */
+    protected abstract Collection<String> getAdditionalCreateStatements( final ColumnDefinition column,
+                                                                         final TableDefinition table );
+
+    private String getPkConstraintName( TableName ftTable ) {
+        String s = null;
+        String table = ftTable.getTable();
+        if ( table.endsWith( "\"" ) ) {
+            s = table.substring( 0, table.length() - 1 ) + "_pkey\"";
+        } else {
+            s = table + "_pkey";
+        }
+        return s;
     }
 
 }

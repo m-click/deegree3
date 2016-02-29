@@ -35,59 +35,61 @@
 package org.deegree.sqldialect.table;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
+import org.deegree.feature.types.property.GeometryPropertyType.GeometryType;
 
 /**
- * Definition of a column of a table in an SQL database.
- * 
+ * Definition of a geometry column of a table in an SQL database.
+ *
  * @author <a href="mailto:schneider@occamlabs.de">Markus Schneider</a>
- * 
+ *
  * @since 3.4
  */
-public abstract class ColumnDefinition {
+public class GeometryColumnDefinition extends ColumnDefinition {
 
-    private final SQLIdentifier name;
-
-    protected boolean isNotNull;
+    private final GeometryType type;
 
     /**
-     * Creates a new <code>ColumnDefinition</code> instance.
-     * 
+     * Creates a new <code>GeometryColumnDefinition</code> instance.
+     *
      * @param name
      *            name of the column, must not be <code>null</code>
+     * @param type
+     *            type of the column, must not be <code>null</code>
      */
-    protected ColumnDefinition( final SQLIdentifier name ) {
-        this.name = name;
+    public GeometryColumnDefinition( final SQLIdentifier name, final GeometryType type ) {
+        super( name );
+        this.type = type;
+    }
+
+    public GeometryColumnDefinition setIsNotNull() {
+        isNotNull = true;
+        return this;
     }
 
     /**
-     * Returns the name of the column.
-     * 
-     * @return name of the column, never <code>null</code>
-     */
-    public SQLIdentifier getName() {
-        return name;
-    }
-
-    /**
-     * Returns whether this column must not be NULL.
-     * 
-     * @return <code>true</code>, if this column must not be NULL, <code>false</code> if it can be NULL
-     */
-    public boolean getIsNotNull() {
-        return isNotNull;
-    }
-
-    /**
-     * Merges the given {@link ColumnDefinition}.
+     * Returns the type of the column.
      *
-     * @param other
-     *            column definition to be merged, must not be <code>null</code>
-     * @throws IllegalArgumentException
-     *             if the column definitions are not compatible
+     * @return type of the column, never <code>null</code>
      */
+    public GeometryType getType() {
+        return type;
+    }
+
+    public String getSrid() {
+        return null;
+    }
+
+    public int getDimension() {
+        return 2;
+    }
+
+    @Override
     public void merge( final ColumnDefinition other ) {
-        final String msg = "Cannot merge column definitions: " + name + " vs. " + other.name;
-        throw new IllegalArgumentException( msg );
+        if ( !( other instanceof GeometryColumnDefinition ) ) {
+            throw new IllegalArgumentException();
+        }
+        final GeometryColumnDefinition that = (GeometryColumnDefinition) other;
+        this.isNotNull = this.isNotNull || that.isNotNull;
     }
 
 }

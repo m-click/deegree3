@@ -1,7 +1,6 @@
-//$HeadURL: svn+ssh://mschneider@svn.wald.intevation.org/deegree/deegree3/trunk/deegree-core/deegree-core-base/src/main/java/org/deegree/sqldialect/SQLDialect.java $
 /*----------------------------------------------------------------------------
  This file is part of deegree, http://deegree.org/
- Copyright (C) 2001-2012 by:
+ Copyright (C) 2001-2016 by:
  - Department of Geography, University of Bonn -
  and
  - lat/lon GmbH -
@@ -44,32 +43,26 @@ import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
 
 /**
- * Metadata for a table in an SQL database (columns/types).
+ * Definition of a table in an SQL database.
  * 
  * @author <a href="mailto:schneider@occamlabs.de">Markus Schneider</a>
- * @author last edited by: $Author: markus $
  * 
- * @version $Revision: $, $Date: $
+ * @since 3.4
  */
 public class TableDefinition {
 
-    private TableName name;
+    private final TableName name;
 
-    private Map<SQLIdentifier, ColumnDefinition> columnNameToColumn = new LinkedHashMap<SQLIdentifier, ColumnDefinition>();
+    private final Map<SQLIdentifier, ColumnDefinition> columnNameToColumn = new LinkedHashMap<SQLIdentifier, ColumnDefinition>();
 
     /**
-     * Creates a new <code>TableDetails</code> instance.
+     * Creates a new <code>TableDefinition</code> instance.
      * 
      * @param name
      *            name of the table, must not be <code>null</code>
-     * @param columns
-     *            column of the table, must not be <code>null</code>
      */
-    public TableDefinition( TableName name, List<ColumnDefinition> columns ) {
+    public TableDefinition( final TableName name ) {
         this.name = name;
-        for ( ColumnDefinition column : columns ) {
-            columnNameToColumn.put( column.getName(), column );
-        }
     }
 
     /**
@@ -77,7 +70,7 @@ public class TableDefinition {
      * 
      * @return name of table, never <code>null</code>
      */
-    public SQLIdentifier getName() {
+    public TableName getName() {
         return name;
     }
 
@@ -97,7 +90,41 @@ public class TableDefinition {
      *            name of the column, must not be <code>null</code>
      * @return specified column, may be <code>null</code> (no such column)
      */
-    public ColumnDefinition getColumn( SQLIdentifier name ) {
+    public ColumnDefinition getColumn( final SQLIdentifier name ) {
         return columnNameToColumn.get( name );
     }
+
+    /**
+     * Returns the primary key columns.
+     *
+     * @return primary key columns, can be empty, but never <code>null</code>
+     */
+    public List<PrimitiveColumnDefinition> getPrimaryKeyColumns() {
+        final List<PrimitiveColumnDefinition> pkColumns = new ArrayList<PrimitiveColumnDefinition>();
+        for ( final ColumnDefinition column : columnNameToColumn.values() ) {
+            if ( column instanceof PrimitiveColumnDefinition ) {
+                final PrimitiveColumnDefinition primitiveColumn = (PrimitiveColumnDefinition) column;
+                if ( primitiveColumn.isPrimaryKey() ) {
+                    pkColumns.add( primitiveColumn );
+                }
+            }
+        }
+        return pkColumns;
+    }
+
+    /**
+     * Adds a column definition, if it already exists, it is merged with the existing one..
+     *
+     * @param column
+     *            column definition, must not be <code>null</code>
+     */
+    public void addColumn( final ColumnDefinition column ) {
+        final ColumnDefinition existing = columnNameToColumn.get( column.getName() );
+        if ( existing != null ) {
+            existing.merge( column );
+        } else {
+            columnNameToColumn.put( column.getName(), column );
+        }
+    }
+
 }

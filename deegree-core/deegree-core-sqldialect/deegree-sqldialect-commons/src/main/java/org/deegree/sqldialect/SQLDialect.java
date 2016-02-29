@@ -39,10 +39,12 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.List;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
+import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.primitive.PrimitiveType;
 import org.deegree.commons.tom.sql.PrimitiveParticleConverter;
 import org.deegree.cs.coordinatesystems.ICRS;
@@ -54,6 +56,7 @@ import org.deegree.geometry.utils.GeometryParticleConverter;
 import org.deegree.sqldialect.filter.AbstractWhereBuilder;
 import org.deegree.sqldialect.filter.PropertyNameMapper;
 import org.deegree.sqldialect.filter.UnmappableException;
+import org.deegree.sqldialect.table.TableDefinition;
 
 /**
  * Implementations provide the vendor-specific behavior for a spatial DBMS so it can be accessed by deegree.
@@ -225,4 +228,23 @@ public interface SQLDialect {
      * @return tailing escape char
      */
     public char getTailingEscapeChar();
+
+    /**
+     * Returns the SQL statements for creating the given table.
+     *
+     * @param table
+     *            table definition, must not be <code>null</code>
+     * @return SQL statements for creating the given table, never <code>null</code>
+     */
+    Collection<String> getCreateTableStatements( final TableDefinition table );
+
+    /**
+     * Returns the SQL definition for the given {@link BaseType}.
+     *
+     * @param type
+     *            base type, must not be <code>null</code>
+     * @return SQL definition, must not be <code>null</code>
+     */
+    String getDBType( final BaseType type );
+
 }

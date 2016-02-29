@@ -35,15 +35,20 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.sqldialect.postgis;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collection;
 import java.util.List;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
+import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.primitive.PrimitiveType;
 import org.deegree.commons.tom.sql.DefaultPrimitiveConverter;
 import org.deegree.commons.tom.sql.PrimitiveParticleConverter;
@@ -61,6 +66,10 @@ import org.deegree.sqldialect.SQLDialect;
 import org.deegree.sqldialect.filter.AbstractWhereBuilder;
 import org.deegree.sqldialect.filter.PropertyNameMapper;
 import org.deegree.sqldialect.filter.UnmappableException;
+import org.deegree.sqldialect.table.ColumnDefinition;
+import org.deegree.sqldialect.table.GeometryColumnDefinition;
+import org.deegree.sqldialect.table.PrimitiveColumnDefinition;
+import org.deegree.sqldialect.table.TableDefinition;
 import org.postgis.PGboxbase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,8 +131,8 @@ public class PostGISDialect extends AbstractSQLDialect implements SQLDialect {
     }
 
     private boolean determineUseLegacyPredicates( String version ) {
-        if ( version == null || version.startsWith( "0." ) || version.startsWith( "1.0" )
-             || version.startsWith( "1.1" ) || version.startsWith( "1.2" ) ) {
+        if ( version == null || version.startsWith( "0." ) || version.startsWith( "1.0" ) || version.startsWith( "1.1" )
+             || version.startsWith( "1.2" ) ) {
             LOG.debug( "PostGIS version is " + version + " -- using legacy (pre-SQL-MM) predicates." );
             return true;
         }
@@ -295,6 +304,88 @@ public class PostGISDialect extends AbstractSQLDialect implements SQLDialect {
     @Override
     public char getTailingEscapeChar() {
         return escapeChar;
+    }
+
+    @Override
+    protected String getCreateSnippet( final ColumnDefinition column ) {
+        if ( column instanceof GeometryColumnDefinition ) {
+            return null;
+        }
+        final PrimitiveColumnDefinition primitiveColumn = (PrimitiveColumnDefinition) column;
+        final StringBuilder sql = new StringBuilder();
+        sql.append( column.getName() );
+        sql.append( ' ' );
+        sql.append( getDBType( primitiveColumn.getType() ) );
+        if ( primitiveColumn.getIsNotNull() ) {
+            sql.append( " NOT NULL" );
+        }
+        if ( primitiveColumn.getReferencedTable() != null ) {
+            sql.append( " REFERENCES " );
+            sql.append( primitiveColumn.getReferencedTable().toString() );
+            if ( primitiveColumn.getIsCascadeOnDelete() ) {
+                sql.append( " ON DELETE CASCADE" );
+            }
+        }
+        return sql.toString();
+    }
+
+    @Override
+    protected Collection<String> getAdditionalCreateStatements( final ColumnDefinition column,
+                                                                final TableDefinition table ) {
+        if ( column instanceof PrimitiveColumnDefinition ) {
+            return emptyList();
+        }
+        final GeometryColumnDefinition geoColumn = (GeometryColumnDefinition) column;
+        final StringBuilder sql = new StringBuilder();
+        sql.append( "SELECT ADDGEOMETRYCOLUMN('" );
+        sql.append( table.getName().getSchema() == null ? "" : table.getName().getSchema() );
+        sql.append( "', '" );
+        sql.append( table.getName().getName().toLowerCase() );
+        sql.append( "', '" );
+        sql.append( geoColumn.getName() );
+        sql.append( "', '" );
+        sql.append( geoColumn.getSrid() );
+        sql.append( "', '" );
+        sql.append( "GEOMETRY" );
+        sql.append( "', '" );
+        sql.append( geoColumn.getDimension() );
+        sql.append( ')' );
+        sql.append( sql );
+        return singletonList( sql.toString() );
+    }
+
+    @Override
+    public String getDBType( final BaseType type ) {
+        String postgresqlType = null;
+        switch ( type ) {
+        case BOOLEAN:
+            postgresqlType = "boolean";
+            break;
+        case DATE:
+            postgresqlType = "date";
+            break;
+        case DATE_TIME:
+            postgresqlType = "timestamp";
+            break;
+        case DECIMAL:
+            postgresqlType = "numeric";
+            break;
+        case DOUBLE:
+            postgresqlType = "float";
+            break;
+        case INTEGER:
+            postgresqlType = "integer";
+            break;
+        case STRING:
+            postgresqlType = "text";
+            break;
+        case TIME:
+            postgresqlType = "time";
+            break;
+        default:
+            throw new RuntimeException( "Internal error. Unhandled primitive type '" + type + "'." );
+        }
+        return postgresqlType;
     }
 
 }

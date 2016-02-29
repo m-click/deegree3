@@ -42,6 +42,7 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.sqldialect.oracle;
 
+import static java.util.Collections.emptyList;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.sql.Connection;
@@ -49,10 +50,12 @@ import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Collection;
 import java.util.List;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
+import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.primitive.PrimitiveType;
 import org.deegree.commons.tom.sql.PrimitiveParticleConverter;
 import org.deegree.commons.utils.JDBCUtils;
@@ -65,12 +68,14 @@ import org.deegree.geometry.Envelope;
 import org.deegree.geometry.Geometry;
 import org.deegree.geometry.GeometryFactory;
 import org.deegree.geometry.utils.GeometryParticleConverter;
+import org.deegree.sqldialect.AbstractSQLDialect;
 import org.deegree.sqldialect.SQLDialect;
 import org.deegree.sqldialect.filter.AbstractWhereBuilder;
 import org.deegree.sqldialect.filter.PropertyNameMapper;
 import org.deegree.sqldialect.filter.UnmappableException;
+import org.deegree.sqldialect.table.ColumnDefinition;
+import org.deegree.sqldialect.table.TableDefinition;
 import org.slf4j.Logger;
-import org.deegree.sqldialect.AbstractSQLDialect;
 
 /**
  * {@link SQLDialect} for Oracle Spatial databases.
@@ -266,6 +271,51 @@ public class OracleDialect extends AbstractSQLDialect implements SQLDialect {
     @Override
     public String getSelectSequenceNextVal( String sequence ) {
         return "SELECT " + sequence + ".NEXTVAL from DUAL";
+    }
+
+    @Override
+    protected String getCreateSnippet( final ColumnDefinition column ) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected Collection<String> getAdditionalCreateStatements( final ColumnDefinition column,
+                                                                final TableDefinition table ) {
+        return emptyList();
+    }
+
+    @Override
+    public String getDBType( final BaseType type ) {
+        String dbType = null;
+        switch ( type ) {
+        case BOOLEAN:
+            dbType = "char";
+            break;
+        case DATE:
+            dbType = "date";
+            break;
+        case DATE_TIME:
+            dbType = "timestamp";
+            break;
+        case DECIMAL:
+            dbType = "numeric";
+            break;
+        case DOUBLE:
+            dbType = "float";
+            break;
+        case INTEGER:
+            dbType = "integer";
+            break;
+        case STRING:
+            dbType = "varchar2(2000)";
+            break;
+        case TIME:
+            dbType = "time";
+            break;
+        default:
+            throw new RuntimeException( "Internal error. Unhandled primitive type '" + type + "'." );
+        }
+        return dbType;
     }
 
 }

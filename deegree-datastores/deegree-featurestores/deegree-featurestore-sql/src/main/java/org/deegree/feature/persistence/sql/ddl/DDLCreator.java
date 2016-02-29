@@ -35,8 +35,14 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql.ddl;
 
+import static org.deegree.commons.tom.primitive.BaseType.INTEGER;
+import static org.deegree.commons.tom.primitive.BaseType.STRING;
+
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.namespace.QName;
 
@@ -50,13 +56,18 @@ import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.id.AutoIDGenerator;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
 import org.deegree.feature.persistence.sql.rules.CompoundMapping;
-import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.feature.persistence.sql.rules.FeatureMapping;
 import org.deegree.feature.persistence.sql.rules.GeometryMapping;
 import org.deegree.feature.persistence.sql.rules.Mapping;
 import org.deegree.feature.persistence.sql.rules.PrimitiveMapping;
+import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.sqldialect.SQLDialect;
+import org.deegree.sqldialect.filter.DBField;
+import org.deegree.sqldialect.filter.MappingExpression;
 import org.deegree.sqldialect.postgis.PostGISDialect;
+import org.deegree.sqldialect.table.GeometryColumnDefinition;
+import org.deegree.sqldialect.table.PrimitiveColumnDefinition;
+import org.deegree.sqldialect.table.TableDefinition;
 
 /**
  * Creates DDL (DataDefinitionLanguage) scripts from {@link MappedAppSchema} instances.
@@ -77,6 +88,8 @@ public abstract class DDLCreator {
     private final SQLDialect dialect;
 
     protected TableName currentFtTable;
+
+    private final Map<TableName, TableDefinition> tableNameToTable = new LinkedHashMap<TableName, TableDefinition>();
 
     /**
      * Creates a new {@link DDLCreator} instance for the given {@link MappedAppSchema}.
@@ -102,134 +115,32 @@ public abstract class DDLCreator {
         if ( hasBlobTable ) {
             ddl.addAll( getBLOBCreates() );
         }
-        for ( StringBuffer sb : getRelationalCreates() ) {
-            ddl.add( sb.toString() );
-        }
-
+        ddl.addAll( getRelationalCreates() );
         return ddl.toArray( new String[ddl.size()] );
     }
 
     protected abstract List<String> getBLOBCreates();
 
-    private List<StringBuffer> getRelationalCreates() {
-        List<StringBuffer> ddl = new ArrayList<StringBuffer>();
+    private List<String> getRelationalCreates() {
+        final List<String> stmts = new ArrayList<String>();
+        buildRelationalModel( getFeatureTypeMappings() );
+        for ( final TableDefinition table : tableNameToTable.values() ) {
+            stmts.addAll( dialect.getCreateTableStatements( table ) );
+        }
+        return stmts;
+    }
 
+    private Collection<FeatureTypeMapping> getFeatureTypeMappings() {
+        final List<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
         for ( short ftId = 0; ftId < schema.getFts(); ftId++ ) {
-            QName ftName = schema.getFtName( ftId );
-            FeatureTypeMapping ftMapping = schema.getFtMapping( ftName );
+            final QName ftName = schema.getFtName( ftId );
+            final FeatureTypeMapping ftMapping = schema.getFtMapping( ftName );
             if ( ftMapping != null ) {
-                ddl.addAll( process( ftMapping ) );
+                ftMappings.add( ftMapping );
             }
         }
-        return ddl;
+        return ftMappings;
     }
-
-    private List<StringBuffer> process( FeatureTypeMapping ftMapping ) {
-        List<StringBuffer> ddls = new ArrayList<StringBuffer>();
-
-        currentFtTable = ftMapping.getFtTable();
-
-        StringBuffer sql = new StringBuffer( "CREATE TABLE " );
-        ddls.add( sql );
-        sql.append( currentFtTable );
-        sql.append( " (" );
-        List<SQLIdentifier> pkColumns = new ArrayList<SQLIdentifier>();
-        if ( hasBlobTable ) {
-            sql.append( "\n    id " ).append( getDBType( BaseType.INTEGER ) ).append( " REFERENCES gml_objects" );
-            pkColumns.add( new SQLIdentifier( "id" ) );
-        } else {
-            FIDMapping fidMapping = ftMapping.getFidMapping();
-            if ( fidMapping.getIdGenerator() instanceof AutoIDGenerator ) {
-                for ( Pair<SQLIdentifier, BaseType> fidColumn : fidMapping.getColumns() ) {
-                    sql.append( "\n    " );
-                    dialect.createAutoColumn( sql, ddls, fidColumn.first, currentFtTable );
-                    pkColumns.add( fidColumn.first );
-                }
-            } else {
-                for ( Pair<SQLIdentifier, BaseType> fidColumn : fidMapping.getColumns() ) {
-                    sql.append( "\n    " );
-                    sql.append( fidColumn.first );
-                    sql.append( " " );
-                    sql.append( getDBType( fidColumn.second ) );
-                    pkColumns.add( fidColumn.first );
-                }
-            }
-        }
-        for ( Mapping mapping : ftMapping.getMappings() ) {
-            ddls.addAll( process( sql, ftMapping.getFtTable(), mapping ) );
-        }
-        sql.append( ",\n    CONSTRAINT " );
-        String pkConstraint = getPkConstraintName( ftMapping.getFtTable() );
-        sql.append( pkConstraint );
-        sql.append( " PRIMARY KEY (" );
-        boolean first = true;
-        for ( SQLIdentifier pkColumn : pkColumns ) {
-            if ( !first ) {
-                sql.append( "," );
-            }
-            sql.append( pkColumn );
-            first = false;
-        }
-        sql.append( ")\n)" );
-        return ddls;
-    }
-
-    private String getPkConstraintName( TableName ftTable ) {
-        String s = null;
-        String table = ftTable.getTable();
-        if ( table.endsWith( "\"" ) ) {
-            s = table.substring( 0, table.length() - 1 ) + "_pkey\"";
-        } else {
-            s = table + "_pkey";
-        }
-        return s;
-    }
-
-    protected abstract void primitiveMappingSnippet( StringBuffer sql, PrimitiveMapping mapping );
-
-    protected abstract void geometryMappingSnippet( StringBuffer sql, GeometryMapping mapping, List<StringBuffer> ddls,
-                                                    TableName table );
-
-    protected abstract void featureMappingSnippet( StringBuffer sql, FeatureMapping mapping );
-
-    protected abstract StringBuffer createJoinedTable( TableName fromTable, TableJoin jc, List<StringBuffer> ddls );
-
-    private List<StringBuffer> process( StringBuffer sql, TableName table, Mapping mapping ) {
-        List<StringBuffer> ddls = new ArrayList<StringBuffer>();
-
-        if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
-            List<TableJoin> jc = mapping.getJoinedTable();
-            sql = createJoinedTable( table, jc.get( 0 ), ddls );
-            table = jc.get( 0 ).getToTable();
-            if ( !ddls.contains( sql ) ) {
-                ddls.add( sql );
-            }
-        }
-
-        if ( mapping instanceof PrimitiveMapping ) {
-            primitiveMappingSnippet( sql, (PrimitiveMapping) mapping );
-        } else if ( mapping instanceof GeometryMapping ) {
-            geometryMappingSnippet( sql, (GeometryMapping) mapping, ddls, table );
-        } else if ( mapping instanceof FeatureMapping ) {
-            featureMappingSnippet( sql, (FeatureMapping) mapping );
-        } else if ( mapping instanceof CompoundMapping ) {
-            CompoundMapping compoundMapping = (CompoundMapping) mapping;
-            for ( Mapping childMapping : compoundMapping.getParticles() ) {
-                ddls.addAll( process( sql, table, childMapping ) );
-            }
-        } else if ( mapping instanceof SqlExpressionMapping ) {
-            // skip
-        } else {
-            throw new RuntimeException( "Internal error. Unhandled mapping type '" + mapping.getClass() + "'" );
-        }
-
-        if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
-            sql.append( "\n)" );
-        }
-        return ddls;
-    }
-
-    protected abstract String getDBType( BaseType type );
 
     // TODO get rid of this (DDLCreator should be the only needed implementation)
     public static DDLCreator newInstance( MappedAppSchema appSchema, SQLDialect dialect ) {
@@ -245,4 +156,112 @@ public abstract class DDLCreator {
         throw new IllegalArgumentException( "Nod DDLCreator for DB type '" + dialect.getClass().getSimpleName()
                                             + "' available." );
     }
+
+    private void buildRelationalModel( final Collection<FeatureTypeMapping> ftMappings ) {
+        for ( final FeatureTypeMapping ftMapping : ftMappings ) {
+            currentFtTable = ftMapping.getFtTable();
+            buildTableDefinitions( ftMapping );
+        }
+    }
+
+    private void buildTableDefinitions( final FeatureTypeMapping ftMapping ) {
+        final TableDefinition ftTable = getTableDefinition( ftMapping.getFtTable() );
+
+        // feature id columns
+        final FIDMapping fidMapping = ftMapping.getFidMapping();
+        for ( final Pair<SQLIdentifier, BaseType> fidColumnAndType : fidMapping.getColumns() ) {
+            final PrimitiveColumnDefinition fidColumn = new PrimitiveColumnDefinition( fidColumnAndType.first,
+                                                                                       fidColumnAndType.second );
+            fidColumn.setIsPrimaryKey();
+            if ( fidMapping.getIdGenerator() instanceof AutoIDGenerator ) {
+                fidColumn.setIsAutogenerated();
+            }
+            ftTable.addColumn( fidColumn );
+        }
+
+        // particle mappings
+        for ( final Mapping mapping : ftMapping.getMappings() ) {
+            buildTableDefinitions( mapping, ftTable );
+        }
+    }
+
+    private void buildTableDefinitions( final Mapping mapping, TableDefinition table ) {
+
+        if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
+            table = buildJoinedTable( table, mapping.getJoinedTable().get( 0 ) );
+        }
+
+        if ( mapping instanceof PrimitiveMapping ) {
+            final PrimitiveMapping primitiveMapping = (PrimitiveMapping) mapping;
+            final MappingExpression me = primitiveMapping.getMapping();
+            if ( me instanceof DBField ) {
+                final DBField dbField = (DBField) me;
+                table.addColumn( new PrimitiveColumnDefinition( new SQLIdentifier( dbField.getColumn() ),
+                                                                primitiveMapping.getType().getBaseType() ) );
+            }
+        } else if ( mapping instanceof GeometryMapping ) {
+            final GeometryMapping geometryMapping = (GeometryMapping) mapping;
+            final MappingExpression me = geometryMapping.getMapping();
+            if ( me instanceof DBField ) {
+                final DBField dbField = (DBField) me;
+                table.addColumn( new GeometryColumnDefinition( new SQLIdentifier( dbField.getColumn() ),
+                                                               geometryMapping.getType() ) );
+            }
+        } else if ( mapping instanceof FeatureMapping ) {
+            final SQLIdentifier col = mapping.getJoinedTable().get( mapping.getJoinedTable().size() - 1 ).getFromColumns().get( 0 );
+            if ( col != null ) {
+                table.addColumn( new PrimitiveColumnDefinition( col, STRING ) );
+            }
+            final MappingExpression hrefMe = ( (FeatureMapping) mapping ).getHrefMapping();
+            if ( hrefMe instanceof DBField ) {
+                table.addColumn( new PrimitiveColumnDefinition( new SQLIdentifier( ( (DBField) hrefMe ).getColumn() ),
+                                                                STRING ) );
+            }
+        } else if ( mapping instanceof CompoundMapping ) {
+            final CompoundMapping compoundMapping = (CompoundMapping) mapping;
+            for ( final Mapping childMapping : compoundMapping.getParticles() ) {
+                buildTableDefinitions( childMapping, table );
+            }
+        } else if ( mapping instanceof SqlExpressionMapping ) {
+            // skip
+        } else {
+            throw new RuntimeException( "Internal error. Unhandled mapping type '" + mapping.getClass() + "'" );
+        }
+    }
+
+    private TableDefinition buildJoinedTable( final TableDefinition fromTable, final TableJoin jc ) {
+        final TableDefinition table = getTableDefinition( jc.getToTable() );
+
+        // primary key column
+        final PrimitiveColumnDefinition pk = new PrimitiveColumnDefinition( new SQLIdentifier( "id" ), INTEGER ).setIsPrimaryKey().setIsAutogenerated();
+        table.addColumn( pk );
+
+        // foreign key to from table
+        final List<PrimitiveColumnDefinition> fromPks = fromTable.getPrimaryKeyColumns();
+        if ( fromPks.size() != 1 ) {
+            throw new UnsupportedOperationException( "Cannot create join table. From table has " + fromPks.size()
+                                                     + " pk columns. Only single pk column is supported." );
+        }
+        final BaseType fkType = fromPks.get( 0 ).getType();
+        final PrimitiveColumnDefinition fk = new PrimitiveColumnDefinition( jc.getToColumns().get( 0 ), fkType );
+        fk.setForeignKey( fromTable.getName(), true );
+        table.addColumn( fk );
+
+        for ( final SQLIdentifier col : jc.getOrderColumns() ) {
+            final PrimitiveColumnDefinition orderColumn = new PrimitiveColumnDefinition( col, INTEGER ).setIsNotNull();
+            table.addColumn( orderColumn );
+        }
+        return table;
+    }
+
+    private TableDefinition getTableDefinition( final TableName name ) {
+        final TableDefinition existingTable = tableNameToTable.get( name );
+        if ( existingTable != null ) {
+            return existingTable;
+        }
+        final TableDefinition newTable = new TableDefinition( name );
+        tableNameToTable.put( name, newTable );
+        return newTable;
+    }
+
 }

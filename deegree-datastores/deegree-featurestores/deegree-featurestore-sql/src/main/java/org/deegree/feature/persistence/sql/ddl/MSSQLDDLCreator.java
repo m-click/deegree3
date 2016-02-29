@@ -40,20 +40,10 @@ import java.util.List;
 
 import javax.xml.namespace.QName;
 
-import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
-import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.utils.ArrayUtils;
 import org.deegree.feature.persistence.sql.MappedAppSchema;
-import org.deegree.feature.persistence.sql.expressions.TableJoin;
-import org.deegree.feature.persistence.sql.rules.FeatureMapping;
-import org.deegree.feature.persistence.sql.rules.GeometryMapping;
-import org.deegree.feature.persistence.sql.rules.PrimitiveMapping;
 import org.deegree.sqldialect.SQLDialect;
-import org.deegree.sqldialect.filter.DBField;
-import org.deegree.sqldialect.filter.MappingExpression;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Creates PostGIS-DDL (DataDefinitionLanguage) scripts from {@link MappedAppSchema} instances.
@@ -65,8 +55,6 @@ import org.slf4j.LoggerFactory;
  */
 public class MSSQLDDLCreator extends DDLCreator {
 
-    private static Logger LOG = LoggerFactory.getLogger( MSSQLDDLCreator.class );
-
     /**
      * Creates a new {@link MSSQLDDLCreator} instance for the given {@link MappedAppSchema}.
      * 
@@ -77,22 +65,6 @@ public class MSSQLDDLCreator extends DDLCreator {
      */
     public MSSQLDDLCreator( MappedAppSchema schema, SQLDialect dialect ) {
         super( schema, dialect );
-    }
-
-    private List<StringBuffer> getGeometryCreate( GeometryMapping mapping, DBField dbField, TableName table ) {
-        List<StringBuffer> ddls = new ArrayList<StringBuffer>();
-        // StringBuffer sql = new StringBuffer();
-        // String schema = table.getSchema() == null ? "" : table.getSchema();
-        // String column = dbField.getColumn();
-        // String srid = mapping.getSrid();
-        // // TODO
-        // String geometryType = "GEOMETRY";
-        // int dim = 2;
-        // sql.append( "SELECT ADDGEOMETRYCOLUMN('" + schema.toLowerCase() + "', '" + table.getTable().toLowerCase()
-        // + "','" + column + "','" + srid + "','" + geometryType + "', " + dim + ")" );
-        // ddls.add( sql );
-
-        return ddls;
     }
 
     @Override
@@ -129,101 +101,4 @@ public class MSSQLDDLCreator extends DDLCreator {
         return ddl;
     }
 
-    @Override
-    protected void primitiveMappingSnippet( StringBuffer sql, PrimitiveMapping mapping ) {
-        MappingExpression me = mapping.getMapping();
-        if ( me instanceof DBField ) {
-            DBField dbField = (DBField) me;
-            sql.append( ",\n    " );
-            sql.append( dbField.getColumn() );
-            sql.append( " " );
-            sql.append( getDBType( mapping.getType().getBaseType() ) );
-        }
-    }
-
-    @Override
-    protected void geometryMappingSnippet( StringBuffer sql, GeometryMapping mapping, List<StringBuffer> ddls,
-                                           TableName table ) {
-        MappingExpression me = mapping.getMapping();
-        if ( me instanceof DBField ) {
-            DBField dbField = (DBField) me;
-            sql.append( ",\n    " );
-            sql.append( dbField.getColumn() );
-            sql.append( " geometry" );
-            ddls.addAll( getGeometryCreate( mapping, (DBField) me, table ) );
-        } else {
-            LOG.info( "Skipping geometry mapping -- not mapped to a db field. " );
-        }
-    }
-
-    @Override
-    protected void featureMappingSnippet( StringBuffer sql, FeatureMapping mapping ) {
-        SQLIdentifier col = mapping.getJoinedTable().get( mapping.getJoinedTable().size() - 1 ).getFromColumns().get( 0 );
-        if ( col != null ) {
-            sql.append( ",\n    " );
-            sql.append( col );
-            sql.append( " varchar(2000)" );
-        }
-        MappingExpression hrefMe = mapping.getHrefMapping();
-        if ( hrefMe instanceof DBField ) {
-            sql.append( ",\n    " );
-            sql.append( ( (DBField) hrefMe ).getColumn() );
-            sql.append( " varchar(2000)" );
-        }
-    }
-
-    @Override
-    protected StringBuffer createJoinedTable( TableName fromTable, TableJoin jc, List<StringBuffer> ddls ) {
-        StringBuffer sb = new StringBuffer( "CREATE TABLE " );
-        sb.append( jc.getToTable() );
-        sb.append( " (\n    " );
-        sb.append( "id integer PRIMARY KEY IDENTITY(1,1),\n    " );
-        sb.append( jc.getToColumns().get( 0 ) );
-        // TODO implement this correctly
-        if ( !fromTable.equals( currentFtTable ) ) {
-            sb.append( " integer NOT NULL REFERENCES" );
-        } else {
-            sb.append( " varchar(2000) NOT NULL REFERENCES" );
-        }
-        sb.append( " " );
-        sb.append( fromTable );
-        for ( SQLIdentifier col : jc.getOrderColumns() ) {
-            sb.append( ",\n    " ).append( col ).append( " integer not null" );
-        }
-        return sb;
-    }
-
-    @Override
-    protected String getDBType( BaseType type ) {
-        String dbType = null;
-        switch ( type ) {
-        case BOOLEAN:
-            dbType = "bit";
-            break;
-        case DATE:
-            dbType = "date";
-            break;
-        case DATE_TIME:
-            dbType = "datetime";
-            break;
-        case DECIMAL:
-            dbType = "numeric";
-            break;
-        case DOUBLE:
-            dbType = "float";
-            break;
-        case INTEGER:
-            dbType = "bigint";
-            break;
-        case STRING:
-            dbType = "varchar(2000)";
-            break;
-        case TIME:
-            dbType = "time";
-            break;
-        default:
-            throw new RuntimeException( "Internal error. Unhandled primitive type '" + type + "'." );
-        }
-        return dbType;
-    }
 }
