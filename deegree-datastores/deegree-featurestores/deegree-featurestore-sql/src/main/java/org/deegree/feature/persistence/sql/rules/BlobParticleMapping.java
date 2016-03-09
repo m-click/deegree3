@@ -35,10 +35,37 @@ public class BlobParticleMapping extends Mapping {
      *            XML schema declaration of the mapped element, must not be <code>null</code>
      * @param tableChange
      *            table joins, can be <code>null</code> (no joins involved)
+     * @param skipOnReconstruct
+     *            <code>true</code>, if the mapping shall be skipped when reconstructing from the database (in case the
+     *            particle is already mapped via another mapping), <code>false</code> otherwise
      */
     public BlobParticleMapping( ValueReference path, boolean voidable, MappingExpression mapping,
-                                XSElementDeclaration elDecl, List<TableJoin> tableChange, CustomConverterJAXB converter ) {
-        super( path, voidable, tableChange, converter );
+                                XSElementDeclaration elDecl, List<TableJoin> tableChange,
+                                CustomConverterJAXB converter, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, converter, skipOnReconstruct );
+        this.mapping = mapping;
+        this.elDecl = elDecl;
+    }
+
+    /**
+     * Creates a new {@link BlobParticleMapping} instance that is not skipped on reconstruction from DB.
+     *
+     * @param path
+     *            relative xpath expression, must not be <code>null</code>
+     * @param voidable
+     *            <code>true</code>, if the particle can be omitted from the parent particle (i.e. be <code>null</code>
+     *            ), <code>false</code> otherwise
+     * @param mapping
+     *            mapping expression (DB column), must not be <code>null</code>
+     * @param elDecl
+     *            XML schema declaration of the mapped element, must not be <code>null</code>
+     * @param tableChange
+     *            table joins, can be <code>null</code> (no joins involved)
+     */
+    public BlobParticleMapping( ValueReference path, boolean voidable, MappingExpression mapping,
+                                XSElementDeclaration elDecl, List<TableJoin> tableChange,
+                                CustomConverterJAXB converter ) {
+        super( path, voidable, tableChange, converter, false );
         this.mapping = mapping;
         this.elDecl = elDecl;
     }

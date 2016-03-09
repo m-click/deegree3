@@ -35,12 +35,12 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql.rules;
 
+import java.util.List;
+
 import org.apache.xerces.xs.XSElementDeclaration;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.jaxb.CustomConverterJAXB;
 import org.deegree.filter.expression.ValueReference;
-
-import java.util.List;
 
 /**
  * Composite {@link Mapping} of complex particles.
@@ -56,16 +56,31 @@ public class CompoundMapping extends Mapping {
 
     private final XSElementDeclaration elDecl;
 
-    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles, List<TableJoin> tableChange,
-                            XSElementDeclaration elDecl, CustomConverterJAXB converter ) {
-        super( path, voidable, tableChange, converter );
+    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles,
+                            List<TableJoin> tableChange, XSElementDeclaration elDecl, CustomConverterJAXB converter,
+                            boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, converter, skipOnReconstruct );
         this.particles = particles;
         this.elDecl = elDecl;
     }
 
-    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles, List<TableJoin> tableChange,
-                            XSElementDeclaration elDecl ) {
-        super( path, voidable, tableChange, null );
+    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles,
+                            List<TableJoin> tableChange, XSElementDeclaration elDecl, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, null, skipOnReconstruct );
+        this.particles = particles;
+        this.elDecl = elDecl;
+    }
+
+    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles,
+                            List<TableJoin> tableChange, XSElementDeclaration elDecl, CustomConverterJAXB converter ) {
+        super( path, voidable, tableChange, converter, false );
+        this.particles = particles;
+        this.elDecl = elDecl;
+    }
+
+    public CompoundMapping( ValueReference path, boolean voidable, List<Mapping> particles,
+                            List<TableJoin> tableChange, XSElementDeclaration elDecl ) {
+        super( path, voidable, tableChange, null, false );
         this.particles = particles;
         this.elDecl = elDecl;
     }

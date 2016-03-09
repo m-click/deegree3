@@ -35,11 +35,11 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql.rules;
 
+import java.util.List;
+
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.jaxb.CustomConverterJAXB;
 import org.deegree.filter.expression.ValueReference;
-
-import java.util.List;
 
 /**
  * A {@link Mapping} describes how a particle of a feature type is mapped to a relational model (tables/columns).
@@ -63,21 +63,29 @@ public abstract class Mapping {
 
     private final CustomConverterJAXB converter;
 
+    private final boolean skipOnReconstruct;
+
     /**
      * Creates a new {@link Mapping} instance.
-     *  @param path
+     *
+     * @param path
      *            relative xpath expression, must not be <code>null</code>
      * @param voidable
      *            true, if the particle can be omitted from the parent particle (i.e. be <code>null</code>), false
      *            otherwise
      * @param tableChange
      * @param converter
+     * @param skipOnReconstruct
+     *            <code>true</code>, if the mapping shall be skipped when reconstructing from the database (in case the
+     *            particle is already mapped via another mapping), <code>false</code> otherwise
      */
-    protected Mapping(ValueReference path, boolean voidable, List<TableJoin> tableChange, CustomConverterJAXB converter) {
+    protected Mapping( ValueReference path, boolean voidable, List<TableJoin> tableChange,
+                       CustomConverterJAXB converter, boolean skipOnReconstruct ) {
         this.path = path;
         this.voidable = voidable;
         this.tableChange = tableChange;
         this.converter = converter;
+        this.skipOnReconstruct = skipOnReconstruct;
     }
 
     /**
@@ -116,6 +124,19 @@ public abstract class Mapping {
      */
     public CustomConverterJAXB getConverter() {
         return converter;
+    }
+
+    /**
+     * Returns whether the mapping shall be skipped when reconstructing from the database.
+     * <p>
+     * This is usually the case when the particle is already mapped via another mapping.
+     * </p>
+     *
+     * @return <code>true</code>, if the mapping shall be skipped when reconstructing from database (in case the
+     *         particle is already mapped via another mapping), <code>false</code> otherwise
+     */
+    public boolean isSkipOnReconstruct() {
+        return skipOnReconstruct;
     }
 
     @Override

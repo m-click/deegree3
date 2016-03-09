@@ -59,15 +59,29 @@ public class FeatureMapping extends Mapping {
     private QName valueFtName;
 
     public FeatureMapping( ValueReference path, boolean voidable, MappingExpression hrefMapping, QName valueFtName,
+                           List<TableJoin> tableChange, CustomConverterJAXB converter, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, converter, skipOnReconstruct );
+        this.hrefMapping = hrefMapping;
+        this.valueFtName = valueFtName;
+    }
+
+    public FeatureMapping( ValueReference path, boolean voidable, MappingExpression hrefMapping, QName valueFtName,
+                           List<TableJoin> tableChange, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, null, skipOnReconstruct );
+        this.hrefMapping = hrefMapping;
+        this.valueFtName = valueFtName;
+    }
+
+    public FeatureMapping( ValueReference path, boolean voidable, MappingExpression hrefMapping, QName valueFtName,
                            List<TableJoin> tableChange, CustomConverterJAXB converter ) {
-        super( path, voidable, tableChange, converter );
+        super( path, voidable, tableChange, converter, false );
         this.hrefMapping = hrefMapping;
         this.valueFtName = valueFtName;
     }
 
     public FeatureMapping( ValueReference path, boolean voidable, MappingExpression hrefMapping, QName valueFtName,
                            List<TableJoin> tableChange ) {
-        super( path, voidable, tableChange, null );
+        super( path, voidable, tableChange, null, false );
         this.hrefMapping = hrefMapping;
         this.valueFtName = valueFtName;
     }
