@@ -205,6 +205,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     }
 
     private void addSelectColumns( Mapping mapping, LinkedHashMap<String, Integer> colToRsIdx, boolean initial ) {
+        if ( mapping.isSkipOnReconstruct() ) {
+            return;
+        }
         List<TableJoin> jc = mapping.getJoinedTable();
         if ( jc != null && initial ) {
             if ( mapping instanceof FeatureMapping ) {
@@ -278,6 +281,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
                 LOG.debug( "Recreating feature '" + gmlId + "' from db (relational mode)." );
                 List<Property> props = new ArrayList<Property>();
                 for ( Mapping mapping : ftMapping.getMappings() ) {
+                    if ( mapping.isSkipOnReconstruct() ) {
+                        continue;
+                    }
                     ValueReference propName = mapping.getPath();
                     QName childEl = getChildElementStepAsQName( propName );
                     if ( childEl != null ) {
@@ -317,6 +323,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     private void addProperties( List<Property> props, PropertyType pt, Mapping propMapping, ResultSet rs,
                                 String idPrefix )
                             throws SQLException {
+        if ( propMapping.isSkipOnReconstruct() ) {
+            return;
+        }
         List<TypedObjectNode> particles = buildParticles( propMapping, rs, qualifiedSqlExprToRsIdx, idPrefix );
         if ( particles.isEmpty() && pt.getMinOccurs() > 0 ) {
             if ( pt.isNillable() ) {
@@ -419,7 +428,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     private List<TypedObjectNode> buildParticles( Mapping mapping, ResultSet rs,
                                                   LinkedHashMap<String, Integer> colToRsIdx, String idPrefix )
                             throws SQLException {
-
+        if ( mapping.isSkipOnReconstruct() ) {
+            return Collections.emptyList();
+        }
         if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
             List<TypedObjectNode> values = new ArrayList<TypedObjectNode>();
             ResultSet rs2 = null;
