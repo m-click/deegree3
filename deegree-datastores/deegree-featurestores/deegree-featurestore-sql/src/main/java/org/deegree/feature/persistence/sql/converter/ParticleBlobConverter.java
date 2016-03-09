@@ -88,12 +88,6 @@ public class ParticleBlobConverter implements ParticleConverter<TypedObjectNode>
         if ( bytes == null ) {
             return null;
         }
-        try {
-            FileUtils.writeByteArrayToFile( new File( "/tmp/blob.xml" ), bytes );
-        } catch ( IOException e1 ) {
-            // TODO Auto-generated catch block
-            e1.printStackTrace();
-        }
         final InputStream is = new ByteArrayInputStream( bytes );
         try {
             return codec.decode( is, fs.getNamespaceContext(), fs.getSchema(), crs, resolver, elementDecl );

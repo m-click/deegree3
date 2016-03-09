@@ -78,6 +78,7 @@ import org.deegree.commons.tom.ElementNode;
 import org.deegree.commons.tom.TypedObjectNode;
 import org.deegree.commons.tom.array.TypedObjectNodeArray;
 import org.deegree.commons.tom.genericxml.GenericXMLElement;
+import org.deegree.commons.tom.gml.GMLObject;
 import org.deegree.commons.tom.gml.GMLObjectCategory;
 import org.deegree.commons.tom.gml.GMLReference;
 import org.deegree.commons.tom.gml.GMLReferenceResolver;
@@ -275,6 +276,40 @@ public abstract class AbstractGMLObjectReader extends XMLAdapter {
         }
         // LOG.debug( "Nope." );
         return null;
+    }
+
+    /**
+     * Returns the object representation for the given GML object element.
+     *
+     * @param xmlStream
+     *            cursor must point at the <code>START_ELEMENT</code> event of the GML object, afterwards points at the
+     *            corresponding <code>END_ELEMENT</code> event
+     * @param elDecl
+     *            element declaration, must not be <code>null</code>
+     * @param crs
+     *            default SRS for all a descendant geometry properties
+     * @return object representation for the given element
+     * @throws XMLParsingException
+     * @throws XMLStreamException
+     * @throws UnknownCRSException
+     */
+    public GMLObject parseGmlObject( final XMLStreamReaderWrapper xmlStream, final XSElementDeclaration elDecl,
+                                     final ICRS crs )
+                            throws XMLParsingException, XMLStreamException, UnknownCRSException {
+        final GMLObjectCategory category = schema.getGMLSchema().getObjectCategory( elDecl );
+        switch ( category ) {
+        case FEATURE:
+            return gmlStreamReader.getFeatureReader().parseFeature( xmlStream, crs );
+        case GEOMETRY:
+            return gmlStreamReader.getGeometryReader().parse( xmlStream, crs );
+        case TIME_OBJECT:
+            final GmlTimeGeometricPrimitiveReader timeReader = new GmlTimeGeometricPrimitiveReader( gmlStreamReader );
+            return timeReader.read( xmlStream );
+        case TIME_SLICE:
+            return gmlStreamReader.getFeatureReader().parseTimeSlice( xmlStream, crs );
+        default:
+            throw new RuntimeException( "Internal error. Unhandled GML object category " + category );
+        }
     }
 
     private Property parseSimpleProperty( XMLStreamReaderWrapper xmlStream, SimplePropertyType propDecl )

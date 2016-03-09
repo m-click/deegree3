@@ -262,7 +262,12 @@ public class BlobCodec {
         gmlReader.setApplicationSchema( schema );
         gmlReader.setDefaultCRS( crs );
         gmlReader.getFeatureReader();
-        final TypedObjectNode object = gmlReader.getFeatureReader().parseGenericXMLElement( xmlStream, decl, crs );
+        TypedObjectNode object = null;
+        if ( schema.getGMLSchema().getObjectCategory( decl ) != null ) {
+            object = gmlReader.getFeatureReader().parseGmlObject( xmlStream, decl, crs );
+        } else {
+            object = gmlReader.getFeatureReader().parseGenericXMLElement( xmlStream, decl, crs );
+        }
         LOG.debug( "Decoding object (compression: {}) took {} [ms]", compression, System.currentTimeMillis() - begin );
         return object;
     }

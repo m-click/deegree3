@@ -46,6 +46,7 @@ import java.util.Map;
 import javax.xml.namespace.QName;
 
 import org.apache.xerces.xs.XSElementDeclaration;
+import org.deegree.commons.tom.Object;
 import org.deegree.commons.tom.TypedObjectNode;
 import org.deegree.commons.tom.genericxml.GenericXMLElement;
 import org.deegree.commons.tom.gml.property.Property;
@@ -55,6 +56,7 @@ import org.deegree.feature.Feature;
 import org.deegree.feature.types.property.CustomPropertyType;
 import org.deegree.feature.types.property.FeaturePropertyType;
 import org.deegree.feature.types.property.GeometryPropertyType;
+import org.deegree.feature.types.property.ObjectPropertyType;
 import org.deegree.feature.types.property.SimplePropertyType;
 import org.deegree.geometry.Geometry;
 
@@ -203,6 +205,9 @@ public class GenericProperty implements Property {
                 return child;
             }
             if ( declaration instanceof SimplePropertyType && child instanceof PrimitiveValue ) {
+                return child;
+            }
+            if ( declaration instanceof ObjectPropertyType && child instanceof Object ) {
                 return child;
             }
         }
