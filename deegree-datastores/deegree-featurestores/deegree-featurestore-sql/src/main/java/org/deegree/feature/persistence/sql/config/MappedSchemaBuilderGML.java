@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -174,8 +175,11 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         }
         if ( ftMappingConfs != null ) {
             for ( FeatureTypeMappingJAXB ftMappingConf : ftMappingConfs ) {
-                org.deegree.feature.persistence.sql.FeatureTypeMapping ftMapping = buildFtMapping( ftMappingConf );
-                ftNameToMapping.put( ftMapping.getFeatureType(), ftMapping );
+                final Collection<FeatureTypeMapping> ftMappings = buildFtMappings( ftMappingConf );
+                for ( final FeatureTypeMapping ftMapping : ftMappings ) {
+                    ftNameToMapping.put( ftMapping.getFeatureType(), ftMapping );
+                }
+
             }
         }
         this.deleteCascadingByDB = deleteCascadingByDB;
@@ -319,18 +323,21 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         return new Pair<BlobMapping, BBoxTableMapping>( blobMapping, bboxMapping );
     }
 
-    private FeatureTypeMapping buildFtMapping( FeatureTypeMappingJAXB ftMappingConf )
+    private Collection<FeatureTypeMapping> buildFtMappings( FeatureTypeMappingJAXB ftMappingConf )
                             throws FeatureStoreException {
-        QName ftName = ftMappingConf.getName();
-        TableName ftTable = new TableName( ftMappingConf.getTable() );
-        FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );
-        List<Mapping> particleMappings = new ArrayList<Mapping>();
-        XSElementDeclaration elDecl = gmlSchema.getGMLSchema().getElementDecl( ftName );
-        for ( JAXBElement<? extends AbstractParticleJAXB> particle : ftMappingConf.getAbstractParticle() ) {
-            particleMappings.add( buildMapping( ftTable, new Pair<XSElementDeclaration, Boolean>( elDecl, TRUE ),
-                                                particle.getValue(), false ) );
+        final Collection<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
+        for ( final QName ftName : ftMappingConf.getName() ) {
+            TableName ftTable = new TableName( ftMappingConf.getTable() );
+            FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );
+            List<Mapping> particleMappings = new ArrayList<Mapping>();
+            XSElementDeclaration elDecl = gmlSchema.getGMLSchema().getElementDecl( ftName );
+            for ( JAXBElement<? extends AbstractParticleJAXB> particle : ftMappingConf.getAbstractParticle() ) {
+                particleMappings.add( buildMapping( ftTable, new Pair<XSElementDeclaration, Boolean>( elDecl, TRUE ),
+                                                    particle.getValue(), false ) );
+            }
+            ftMappings.add( new FeatureTypeMapping( ftName, ftTable, fidMapping, particleMappings ) );
         }
-        return new FeatureTypeMapping( ftName, ftTable, fidMapping, particleMappings );
+        return ftMappings;
     }
 
     private FIDMapping buildFIDMapping( TableName table, QName ftName, FIDMappingJAXB config )
