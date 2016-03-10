@@ -69,10 +69,33 @@ public class PrimitiveMapping extends Mapping {
      * @param pt
      * @param tableChange
      *            table joins, can be <code>null</code> (no joins involved)
+     * @param skipOnReconstruct
+     *            <code>true</code>, if the mapping shall be skipped when reconstructing from the database (in case the
+     *            particle is already mapped via another mapping), <code>false</code> otherwise
+     */
+    public PrimitiveMapping( ValueReference path, boolean voidable, MappingExpression mapping, PrimitiveType pt,
+                             List<TableJoin> tableChange, CustomConverterJAXB converter, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, converter, skipOnReconstruct );
+        this.pt = pt;
+        this.mapping = mapping;
+    }
+
+    /**
+     * Creates a new {@link PrimitiveMapping} instance that is not skipped on reconstruction from DB.
+     *
+     * @param path
+     *            relative xpath expression, must not be <code>null</code>
+     * @param voidable
+     *            true, if the particle can be omitted from the parent particle (i.e. be <code>null</code>), false
+     *            otherwise
+     * @param mapping
+     * @param pt
+     * @param tableChange
+     *            table joins, can be <code>null</code> (no joins involved)
      */
     public PrimitiveMapping( ValueReference path, boolean voidable, MappingExpression mapping, PrimitiveType pt,
                              List<TableJoin> tableChange, CustomConverterJAXB converter ) {
-        super( path, voidable, tableChange, converter );
+        super( path, voidable, tableChange, converter, false );
         this.pt = pt;
         this.mapping = mapping;
     }

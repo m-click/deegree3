@@ -63,17 +63,35 @@ public class GeometryMapping extends Mapping {
 
     private final GeometryStorageParams geometryParams;
 
-    public GeometryMapping(ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
-                           GeometryStorageParams geometryParams, List<TableJoin> tableChange, CustomConverterJAXB converter) {
-        super( path, voidable, tableChange, converter );
+    public GeometryMapping( ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
+                            GeometryStorageParams geometryParams, List<TableJoin> tableChange,
+                            CustomConverterJAXB converter, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, converter, skipOnReconstruct );
         this.mapping = mapping;
         this.type = type;
         this.geometryParams = geometryParams;
     }
 
-    public GeometryMapping(ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
-                           GeometryStorageParams geometryParams, List<TableJoin> tableChange) {
-        super( path, voidable, tableChange, null );
+    public GeometryMapping( ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
+                            GeometryStorageParams geometryParams, List<TableJoin> tableChange, boolean skipOnReconstruct ) {
+        super( path, voidable, tableChange, null, skipOnReconstruct );
+        this.mapping = mapping;
+        this.type = type;
+        this.geometryParams = geometryParams;
+    }
+
+    public GeometryMapping( ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
+                            GeometryStorageParams geometryParams, List<TableJoin> tableChange,
+                            CustomConverterJAXB converter ) {
+        super( path, voidable, tableChange, converter, false );
+        this.mapping = mapping;
+        this.type = type;
+        this.geometryParams = geometryParams;
+    }
+
+    public GeometryMapping( ValueReference path, boolean voidable, MappingExpression mapping, GeometryType type,
+                            GeometryStorageParams geometryParams, List<TableJoin> tableChange ) {
+        super( path, voidable, tableChange, null, false );
         this.mapping = mapping;
         this.type = type;
         this.geometryParams = geometryParams;

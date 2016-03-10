@@ -66,7 +66,7 @@ import org.deegree.workspace.standard.DefaultResourceIdentifier;
  */
 public class SqlFeatureStoreMetadata extends AbstractResourceMetadata<FeatureStore> {
 
-    private static final String CONFIG_JAXB_PACKAGE = "org.deegree.feature.persistence.sql.jaxb";
+    public static final String CONFIG_JAXB_PACKAGE = "org.deegree.feature.persistence.sql.jaxb";
 
     public SqlFeatureStoreMetadata( Workspace workspace, ResourceLocation<FeatureStore> location,
                                     AbstractResourceProvider<FeatureStore> provider ) {

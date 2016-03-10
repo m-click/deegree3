@@ -52,6 +52,28 @@ public class SqlExpressionMapping<T extends TypedObjectNode> extends Mapping {
 
     /**
      * Creates a new {@link SqlExpressionMapping} instance.
+     *
+     * @param path
+     *            relative xpath expression, must not be <code>null</code>
+     * @param sql
+     *            the SQL expression, must not be <code>null</code>
+     * @param skipOnReconstruct
+     *            <code>true</code>, if the mapping shall be skipped when reconstructing from the database (in case the
+     *            particle is already mapped via another mapping), <code>false</code> otherwise
+     */
+    public SqlExpressionMapping( ValueReference path, final String sql, CustomConverterJAXB converter,
+                                 final boolean skipOnReconstruct ) {
+        super( path, false, null, converter, skipOnReconstruct );
+        this.sql = sql;
+    }
+
+    public SqlExpressionMapping( ValueReference path, final String sql, final boolean skipOnReconstruct ) {
+        super( path, false, null, null, skipOnReconstruct );
+        this.sql = sql;
+    }
+
+    /**
+     * Creates a new {@link SqlExpressionMapping} instance that is not skipped on reconstruction from DB..
      * 
      * @param path
      *            relative xpath expression, must not be <code>null</code>
@@ -59,12 +81,12 @@ public class SqlExpressionMapping<T extends TypedObjectNode> extends Mapping {
      *            the SQL expression, must not be <code>null</code>
      */
     public SqlExpressionMapping( ValueReference path, final String sql, CustomConverterJAXB converter ) {
-        super( path, false, null, converter );
+        super( path, false, null, converter, false );
         this.sql = sql;
     }
 
     public SqlExpressionMapping( ValueReference path, final String sql ) {
-        super( path, false, null, null );
+        super( path, false, null, null, false );
         this.sql = sql;
     }
 

@@ -49,11 +49,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.XMLConstants;
 import javax.xml.bind.JAXBElement;
@@ -320,7 +321,6 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
 
     private FeatureTypeMapping buildFtMapping( FeatureTypeMappingJAXB ftMappingConf )
                             throws FeatureStoreException {
-
         QName ftName = ftMappingConf.getName();
         TableName ftTable = new TableName( ftMappingConf.getTable() );
         FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );
@@ -328,7 +328,7 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         XSElementDeclaration elDecl = gmlSchema.getGMLSchema().getElementDecl( ftName );
         for ( JAXBElement<? extends AbstractParticleJAXB> particle : ftMappingConf.getAbstractParticle() ) {
             particleMappings.add( buildMapping( ftTable, new Pair<XSElementDeclaration, Boolean>( elDecl, TRUE ),
-                                                particle.getValue() ) );
+                                                particle.getValue(), false ) );
         }
         return new FeatureTypeMapping( ftName, ftTable, fidMapping, particleMappings );
     }
@@ -364,29 +364,29 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
     }
 
     private Mapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                  AbstractParticleJAXB value ) {
+                                  AbstractParticleJAXB value, final boolean skipOnReconstruct ) {
         LOG.debug( "Building mapping for path '{}' on element '{}'", value.getPath(), elDecl );
         if ( value instanceof PrimitiveParticleJAXB ) {
-            return buildMapping( currentTable, elDecl, (PrimitiveParticleJAXB) value );
+            return buildMapping( currentTable, elDecl, (PrimitiveParticleJAXB) value, skipOnReconstruct );
         }
         if ( value instanceof GeometryParticleJAXB ) {
-            return buildMapping( currentTable, elDecl, (GeometryParticleJAXB) value );
+            return buildMapping( currentTable, elDecl, (GeometryParticleJAXB) value, skipOnReconstruct );
         }
         if ( value instanceof FeatureParticleJAXB ) {
-            return buildMapping( currentTable, elDecl, (FeatureParticleJAXB) value );
+            return buildMapping( currentTable, elDecl, (FeatureParticleJAXB) value, skipOnReconstruct );
         }
         if ( value instanceof BlobParticleJAXB ) {
-            return buildMapping( currentTable, elDecl, (BlobParticleJAXB) value );
+            return buildMapping( currentTable, elDecl, (BlobParticleJAXB) value, skipOnReconstruct );
         }
         if ( value instanceof ComplexParticleJAXB ) {
-            return buildMapping( currentTable, elDecl, (ComplexParticleJAXB) value );
+            return buildMapping( currentTable, elDecl, (ComplexParticleJAXB) value, skipOnReconstruct );
         }
         throw new RuntimeException( "Internal error. Unhandled particle mapping JAXB bean '"
                                     + value.getClass().getName() + "'." );
     }
 
     private Mapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                  PrimitiveParticleJAXB config ) {
+                                  PrimitiveParticleJAXB config, final boolean skipOnReconstruct  ) {
 
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         Pair<PrimitiveType, Boolean> pt = null;
@@ -407,11 +407,11 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
         LOG.debug( "Targeted primitive type: " + pt );
         boolean escalateVoid = determineParticleVoidability( pt.second, config.getNullEscalation() );
-        return new PrimitiveMapping( path, escalateVoid, me, pt.first, joinedTable, config.getCustomConverter() );
+        return new PrimitiveMapping( path, escalateVoid, me, pt.first, joinedTable, config.getCustomConverter(), skipOnReconstruct );
     }
 
     private GeometryMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                          GeometryParticleJAXB config ) {
+                                          GeometryParticleJAXB config, final boolean skipOnReconstruct ) {
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         MappingExpression me = parseMappingExpression( config.getMapping() );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
@@ -424,11 +424,11 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
         List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
         return new GeometryMapping( path, escalateVoid, me, type, geometryParams, joinedTable,
-                                    config.getCustomConverter() );
+                                    config.getCustomConverter(), skipOnReconstruct );
     }
 
     private FeatureMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                         FeatureParticleJAXB config ) {
+                                         FeatureParticleJAXB config, final boolean skipOnReconstruct ) {
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         MappingExpression hrefMe = null;
         if ( config.getHref() != null ) {
@@ -441,11 +441,11 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
                                                                                                     ptName, 0, 1, null );
         boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
         List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
-        return new FeatureMapping( path, escalateVoid, hrefMe, pt.getFTName(), joinedTable, config.getCustomConverter() );
+        return new FeatureMapping( path, escalateVoid, hrefMe, pt.getFTName(), joinedTable, config.getCustomConverter(), skipOnReconstruct );
     }
 
     private CompoundMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                          ComplexParticleJAXB config ) {
+                                          ComplexParticleJAXB config, final boolean skipOnReconstruct ) {
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
         boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
@@ -454,21 +454,14 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
             currentTable = joinedTable.get( joinedTable.size() - 1 ).getToTable();
         }
 
-        List<JAXBElement<? extends AbstractParticleJAXB>> children = config.getAbstractParticle();
-        List<Mapping> particles = new ArrayList<Mapping>( children.size() );
-        for ( JAXBElement<? extends AbstractParticleJAXB> child : children ) {
-            Mapping particle = buildMapping( currentTable, elDecl, child.getValue() );
-            if ( particle != null ) {
-                particles.add( particle );
-            }
-        }
-
+        final List<JAXBElement<? extends AbstractParticleJAXB>> children = config.getAbstractParticle();
+        final List<Mapping> particles = buildChildMappings( currentTable, elDecl, children, skipOnReconstruct );
         return new CompoundMapping( path, escalateVoid, particles, joinedTable, elDecl.first,
-                                    config.getCustomConverter() );
+                                    config.getCustomConverter(), skipOnReconstruct );
     }
 
     private BlobParticleMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                              final BlobParticleJAXB config ) {
+                                              final BlobParticleJAXB config, final boolean skipOnReconstruct ) {
         final ValueReference path = new ValueReference( config.getPath(), nsBindings );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
         final MappingExpression blobMapping = parseMappingExpression( config.getMapping() );
@@ -478,7 +471,7 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
             currentTable = joinedTable.get( joinedTable.size() - 1 ).getToTable();
         }
         return new BlobParticleMapping( path, escalateVoid, blobMapping, elDecl.first, joinedTable,
-                                        config.getCustomConverter() );
+                                        config.getCustomConverter(), skipOnReconstruct );
     }
 
     private boolean determineParticleVoidability( boolean fromSchema, NullEscalationType config ) {
@@ -490,4 +483,23 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         }
         return false;
     }
+
+    private List<Mapping> buildChildMappings( final TableName table,
+                                              final Pair<XSElementDeclaration, Boolean> elDeclAndVoidable,
+                                              final List<JAXBElement<? extends AbstractParticleJAXB>> childParticles,
+                                              final boolean skipOnReconstruct ) {
+        final List<Mapping> particles = new ArrayList<Mapping>();
+        final Set<String> mappedPaths = new HashSet<String>();
+        for ( final JAXBElement<? extends AbstractParticleJAXB> particle : childParticles ) {
+            final String path = particle.getValue().getPath();
+            final boolean skipChildOnReconstruct = skipOnReconstruct || mappedPaths.contains( path );
+            final Mapping mapping = buildMapping( table, elDeclAndVoidable, particle.getValue(), skipChildOnReconstruct );
+            if ( mapping != null ) {
+                particles.add( mapping );
+                mappedPaths.add( path );
+            }
+        }
+        return particles;
+    }
+
 }
