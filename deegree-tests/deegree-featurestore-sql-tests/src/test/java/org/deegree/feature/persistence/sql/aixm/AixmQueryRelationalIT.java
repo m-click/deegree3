@@ -54,4 +54,19 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         assertEquals( 1, fc.size() );
         assertGmlEquals( fc.iterator().next(), "aixm/expected/airspace_eamm2.xml" );
     }
+
+    public void testQueryFilterOnHybridProperty()
+                            throws Exception {
+        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition.xml", VERTICAL_STRUCTURE_NAME );
+        final FeatureCollection fc = fs.query( query ).toCollection();
+        assertEquals( 8, fc.size() );
+    }
+
+    public void testQueryFilterOnHybridPropertyNoMatch()
+                            throws Exception {
+        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition_no_match.xml", VERTICAL_STRUCTURE_NAME );
+        final FeatureCollection fc = fs.query( query ).toCollection();
+        assertEquals( 0, fc.size() );
+    }
+
 }

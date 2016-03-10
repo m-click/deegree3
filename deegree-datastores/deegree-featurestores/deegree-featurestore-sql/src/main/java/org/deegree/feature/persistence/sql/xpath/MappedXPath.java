@@ -47,7 +47,9 @@ import org.deegree.commons.tom.sql.ParticleConverter;
 import org.deegree.feature.persistence.sql.FeatureTypeMapping;
 import org.deegree.feature.persistence.sql.MappedAppSchema;
 import org.deegree.feature.persistence.sql.SQLFeatureStore;
+import org.deegree.feature.persistence.sql.blob.BlobMapping;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
+import org.deegree.feature.persistence.sql.rules.BlobParticleMapping;
 import org.deegree.feature.persistence.sql.rules.CompoundMapping;
 import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.feature.persistence.sql.rules.FeatureMapping;
@@ -144,6 +146,9 @@ public class MappedXPath {
 
         boolean matchFound = false;
         for ( Mapping mapping : mappedParticles ) {
+            if ( mapping instanceof BlobParticleMapping ) {
+                continue;
+            }
             List<MappableStep> mapSteps = MappableNameStep.extractSteps( mapping.getPath() );
             if ( !mapSteps.isEmpty() && !steps.isEmpty() ) {
                 matchFound = mapSteps.get( 0 ).equals( steps.get( 0 ) );

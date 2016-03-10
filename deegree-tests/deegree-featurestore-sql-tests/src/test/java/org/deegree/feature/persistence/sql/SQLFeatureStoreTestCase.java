@@ -2,6 +2,7 @@ package org.deegree.feature.persistence.sql;
 
 import static java.util.Collections.emptyList;
 import static org.apache.commons.io.IOUtils.toByteArray;
+import static org.deegree.commons.xml.stax.XMLStreamUtils.skipStartDocument;
 import static org.deegree.cs.persistence.CRSManager.getCRSRef;
 import static org.deegree.db.ConnectionProviderUtils.getSyntheticProvider;
 import static org.deegree.feature.persistence.sql.PostGISSetupHelper.ADMIN_PASS;
@@ -18,11 +19,10 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,8 +31,10 @@ import java.util.Map;
 
 import javax.xml.namespace.QName;
 import javax.xml.stream.FactoryConfigurationError;
+import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLOutputFactory;
 import javax.xml.stream.XMLStreamException;
+import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamWriter;
 
 import org.apache.commons.io.FileUtils;
@@ -56,13 +58,13 @@ import org.deegree.feature.persistence.FeatureStoreException;
 import org.deegree.feature.persistence.FeatureStoreProvider;
 import org.deegree.feature.persistence.FeatureStoreTransaction;
 import org.deegree.feature.persistence.query.Query;
-import org.deegree.feature.persistence.sql.ddl.DDLCreator;
 import org.deegree.filter.Filter;
 import org.deegree.filter.IdFilter;
 import org.deegree.filter.OperatorFilter;
 import org.deegree.filter.comparison.PropertyIsEqualTo;
 import org.deegree.filter.expression.Literal;
 import org.deegree.filter.expression.ValueReference;
+import org.deegree.filter.xml.Filter200XMLDecoder;
 import org.deegree.gml.GMLInputFactory;
 import org.deegree.gml.GMLStreamReader;
 import org.deegree.gml.GMLStreamWriter;
@@ -176,6 +178,25 @@ public abstract class SQLFeatureStoreTestCase extends XMLTestCase {
      */
     protected Query buildGmlIdentifierQuery( final String identifier, final QName featureTypeName ) {
         final Filter filter = buildGmlIdentifierFilter( identifier );
+        return new Query( featureTypeName, filter, -1, -1, -1 );
+    }
+
+    /**
+     * Creates a {@link Query} that targets the feature with the given <code>gml:identifier</code>.
+     *
+     * @param identifier
+     *            value of the gml:identifier, must not be <code>null</code>
+     * @param filterResource
+     *            name of the filter resource (relative to this class), must not be <code>null</code>
+     * @return query instance, never <code>null</code>
+     * @throws XMLStreamException
+     * @throws XMLParsingException
+     */
+    protected Query buildFilterQuery( final String filterResource, final QName featureTypeName ) throws XMLParsingException, XMLStreamException {
+        final InputStream is = SQLFeatureStoreTestCase.class.getResourceAsStream( filterResource );
+        final XMLStreamReader xmlStream = XMLInputFactory.newInstance().createXMLStreamReader( is );
+        skipStartDocument( xmlStream );
+        final Filter filter = Filter200XMLDecoder.parse( xmlStream );
         return new Query( featureTypeName, filter, -1, -1, -1 );
     }
 
