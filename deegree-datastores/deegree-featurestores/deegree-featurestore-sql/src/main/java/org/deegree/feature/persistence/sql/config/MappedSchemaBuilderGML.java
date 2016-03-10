@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -82,6 +83,7 @@ import org.deegree.feature.persistence.sql.id.AutoIDGenerator;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
 import org.deegree.feature.persistence.sql.id.IDGenerator;
 import org.deegree.feature.persistence.sql.jaxb.AbstractParticleJAXB;
+import org.deegree.feature.persistence.sql.jaxb.BlobParticleJAXB;
 import org.deegree.feature.persistence.sql.jaxb.ComplexParticleJAXB;
 import org.deegree.feature.persistence.sql.jaxb.FIDMappingJAXB;
 import org.deegree.feature.persistence.sql.jaxb.FIDMappingJAXB.ColumnJAXB;
@@ -94,6 +96,7 @@ import org.deegree.feature.persistence.sql.jaxb.SQLFeatureStoreJAXB.BLOBMapping;
 import org.deegree.feature.persistence.sql.jaxb.SQLFeatureStoreJAXB.NamespaceHint;
 import org.deegree.feature.persistence.sql.jaxb.StorageCRS;
 import org.deegree.feature.persistence.sql.mapper.XPathSchemaWalker;
+import org.deegree.feature.persistence.sql.rules.BlobParticleMapping;
 import org.deegree.feature.persistence.sql.rules.CompoundMapping;
 import org.deegree.feature.persistence.sql.rules.FeatureMapping;
 import org.deegree.feature.persistence.sql.rules.GeometryMapping;
@@ -372,6 +375,9 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         if ( value instanceof FeatureParticleJAXB ) {
             return buildMapping( currentTable, elDecl, (FeatureParticleJAXB) value );
         }
+        if ( value instanceof BlobParticleJAXB ) {
+            return buildMapping( currentTable, elDecl, (BlobParticleJAXB) value );
+        }
         if ( value instanceof ComplexParticleJAXB ) {
             return buildMapping( currentTable, elDecl, (ComplexParticleJAXB) value );
         }
@@ -459,6 +465,20 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
 
         return new CompoundMapping( path, escalateVoid, particles, joinedTable, elDecl.first,
                                     config.getCustomConverter() );
+    }
+
+    private BlobParticleMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
+                                              final BlobParticleJAXB config ) {
+        final ValueReference path = new ValueReference( config.getPath(), nsBindings );
+        elDecl = schemaWalker.getTargetElement( elDecl, path );
+        final MappingExpression blobMapping = parseMappingExpression( config.getMapping() );
+        final boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
+        final List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
+        if ( joinedTable != null ) {
+            currentTable = joinedTable.get( joinedTable.size() - 1 ).getToTable();
+        }
+        return new BlobParticleMapping( path, escalateVoid, blobMapping, elDecl.first, joinedTable,
+                                        config.getCustomConverter() );
     }
 
     private boolean determineParticleVoidability( boolean fromSchema, NullEscalationType config ) {

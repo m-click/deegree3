@@ -247,4 +247,11 @@ public interface SQLDialect {
      */
     String getDBType( final BaseType type );
 
+    /**
+     * Returns the SQL definition for a BLOB column.
+     *
+     * @return SQL definition, must not be <code>null</code>
+     */
+    String getDBBlobType();
+
 }

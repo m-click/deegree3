@@ -55,6 +55,7 @@ import org.deegree.feature.persistence.sql.MappedAppSchema;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.id.AutoIDGenerator;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
+import org.deegree.feature.persistence.sql.rules.BlobParticleMapping;
 import org.deegree.feature.persistence.sql.rules.CompoundMapping;
 import org.deegree.feature.persistence.sql.rules.FeatureMapping;
 import org.deegree.feature.persistence.sql.rules.GeometryMapping;
@@ -65,6 +66,7 @@ import org.deegree.sqldialect.SQLDialect;
 import org.deegree.sqldialect.filter.DBField;
 import org.deegree.sqldialect.filter.MappingExpression;
 import org.deegree.sqldialect.postgis.PostGISDialect;
+import org.deegree.sqldialect.table.BlobColumnDefinition;
 import org.deegree.sqldialect.table.GeometryColumnDefinition;
 import org.deegree.sqldialect.table.PrimitiveColumnDefinition;
 import org.deegree.sqldialect.table.TableDefinition;
@@ -206,6 +208,13 @@ public abstract class DDLCreator {
                 final DBField dbField = (DBField) me;
                 table.addColumn( new GeometryColumnDefinition( new SQLIdentifier( dbField.getColumn() ),
                                                                geometryMapping.getType() ) );
+            }
+        } else if ( mapping instanceof BlobParticleMapping ) {
+            final BlobParticleMapping blobMapping = (BlobParticleMapping) mapping;
+            final MappingExpression me = blobMapping.getMapping();
+            if ( me instanceof DBField ) {
+                final DBField dbField = (DBField) me;
+                table.addColumn( new BlobColumnDefinition( new SQLIdentifier( dbField.getColumn() ) ) );
             }
         } else if ( mapping instanceof FeatureMapping ) {
             final SQLIdentifier col = mapping.getJoinedTable().get( mapping.getJoinedTable().size() - 1 ).getFromColumns().get( 0 );

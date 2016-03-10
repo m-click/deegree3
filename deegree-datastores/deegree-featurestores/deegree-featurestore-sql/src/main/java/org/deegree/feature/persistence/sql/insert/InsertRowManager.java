@@ -65,12 +65,13 @@ import org.deegree.feature.persistence.sql.SQLFeatureStoreTransaction;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.id.KeyPropagation;
 import org.deegree.feature.persistence.sql.id.TableDependencies;
+import org.deegree.feature.persistence.sql.rules.BlobParticleMapping;
 import org.deegree.feature.persistence.sql.rules.CompoundMapping;
-import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.feature.persistence.sql.rules.FeatureMapping;
 import org.deegree.feature.persistence.sql.rules.GeometryMapping;
 import org.deegree.feature.persistence.sql.rules.Mapping;
 import org.deegree.feature.persistence.sql.rules.PrimitiveMapping;
+import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.feature.types.FeatureType;
 import org.deegree.feature.xpath.TypedObjectNodeXPathEvaluator;
 import org.deegree.filter.FilterEvaluationException;
@@ -393,6 +394,16 @@ public class InsertRowManager {
                             currentRow.removeParent( subFeatureRow );
                         }
                     }
+                }
+            } else if ( mapping instanceof BlobParticleMapping ) {
+                MappingExpression me = ( (BlobParticleMapping) mapping ).getMapping();
+                if ( !( me instanceof DBField ) ) {
+                    LOG.debug( "Skipping BLOB mapping. Not mapped to database column." );
+                } else {
+                    @SuppressWarnings("unchecked")
+                    final ParticleConverter<TypedObjectNode> converter = (ParticleConverter<TypedObjectNode>) fs.getConverter( mapping );
+                    String column = ( (DBField) me ).getColumn();
+                    currentRow.addPreparedArgument( column, value, converter );
                 }
             } else if ( mapping instanceof CompoundMapping ) {
                 for ( Mapping child : ( (CompoundMapping) mapping ).getParticles() ) {

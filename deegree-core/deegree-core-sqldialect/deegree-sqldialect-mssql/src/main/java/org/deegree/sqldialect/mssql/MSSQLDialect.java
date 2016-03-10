@@ -272,4 +272,9 @@ public class MSSQLDialect extends AbstractSQLDialect implements SQLDialect {
         return dbType;
     }
 
+    @Override
+    public String getDBBlobType() {
+        return "varbinary(max)";
+    }
+
 }

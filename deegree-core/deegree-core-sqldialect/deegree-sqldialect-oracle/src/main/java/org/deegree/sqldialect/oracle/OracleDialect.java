@@ -318,4 +318,9 @@ public class OracleDialect extends AbstractSQLDialect implements SQLDialect {
         return dbType;
     }
 
+    @Override
+    public String getDBBlobType() {
+        return "blob";
+    }
+
 }
