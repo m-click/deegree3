@@ -58,6 +58,7 @@ import java.util.Map;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
 
+import org.apache.xerces.xs.XSElementDeclaration;
 import org.deegree.commons.tom.TypedObjectNode;
 import org.deegree.commons.tom.gml.GMLObjectType;
 import org.deegree.commons.tom.gml.property.Property;
