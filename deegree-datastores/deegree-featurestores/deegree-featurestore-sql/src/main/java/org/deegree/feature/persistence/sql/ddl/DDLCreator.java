@@ -181,6 +181,14 @@ public abstract class DDLCreator {
             ftTable.addColumn( fidColumn );
         }
 
+        // type column (multi feature type mapping)
+        if ( ftMapping.getTypeColumn() != null ) {
+            final PrimitiveColumnDefinition typeColumn = new PrimitiveColumnDefinition( ftMapping.getTypeColumn(),
+                                                                                        STRING );
+            typeColumn.setIsNotNull();
+            ftTable.addColumn( typeColumn );
+        }
+
         // particle mappings
         for ( final Mapping mapping : ftMapping.getMappings() ) {
             buildTableDefinitions( mapping, ftTable );

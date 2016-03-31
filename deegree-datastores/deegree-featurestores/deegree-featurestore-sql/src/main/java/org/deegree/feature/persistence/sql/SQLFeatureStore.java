@@ -1463,7 +1463,9 @@ public class SQLFeatureStore implements FeatureStore {
                 } else {
                     sql.append( " AND " );
                 }
-                sql.append( ftMapping.getTypeColumn() );
+                sql.append( ftTableAlias );
+                sql.append( '.' );
+                sql.append( ftMapping.getTypeColumn().getName() );
                 sql.append( "=?" );
             }
             if ( wb.getOrderBy() != null ) {

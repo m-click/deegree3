@@ -13,10 +13,9 @@
 
   <CustomReferenceResolver>org.deegree.feature.persistence.FeatureStoreGmlIdentifierResolver</CustomReferenceResolver>
 
-
-  <FeatureTypeMapping name="aixm:AirportHeliport" table="airport_heliport">
-    <FIDMapping prefix="airport.heliport.uuid.">
-      <Column name="attr_gml_id" type="string" />
+  <FeatureTypeMapping name="aixm:AerialRefuelling aixm:AeronauticalGroundLight aixm:AirTrafficControlService aixm:AirTrafficManagementService aixm:AircraftGroundService aixm:AircraftStand aixm:AirportClearanceService aixm:AirportHeliport aixm:AirportHeliportCollocation aixm:AirportHotSpot aixm:AirportProtectionAreaMarking aixm:AirportSuppliesService aixm:Airspace aixm:AirspaceBorderCrossing aixm:AltimeterSource aixm:AngleIndication aixm:ApproachLightingSystem aixm:Apron aixm:ApronElement aixm:ApronLightSystem aixm:ApronMarking aixm:ArrestingGear aixm:ArrivalFeederLeg aixm:ArrivalLeg aixm:AuthorityForAirspace aixm:Azimuth aixm:ChangeOverPoint aixm:CheckpointINS aixm:CheckpointVOR aixm:CirclingArea aixm:DME aixm:DeicingArea aixm:DeicingAreaMarking aixm:DepartureLeg aixm:DesignatedPoint aixm:DirectionFinder aixm:DistanceIndication aixm:Elevation aixm:FinalLeg aixm:FireFightingService aixm:FlightRestriction aixm:FloatingDockSite aixm:GeoBorder aixm:Glidepath aixm:GroundTrafficControlService aixm:GuidanceLine aixm:GuidanceLineLightSystem aixm:GuidanceLineMarking aixm:HoldingAssessment aixm:HoldingPattern aixm:InformationService aixm:InitialLeg aixm:InstrumentApproachProcedure aixm:IntermediateLeg aixm:Localizer aixm:MarkerBeacon aixm:MarkingBuoy aixm:MissedApproachLeg aixm:NDB aixm:Navaid aixm:NavigationArea aixm:NavigationAreaRestriction aixm:NonMovementArea aixm:ObstacleArea aixm:OrganisationAuthority aixm:PassengerLoadingBridge aixm:PassengerService aixm:PilotControlledLighting aixm:PrecisionApproachRadar aixm:PrimarySurveillanceRadar aixm:ProcedureDME aixm:RadarSystem aixm:RadioCommunicationChannel aixm:RadioFrequencyArea aixm:Road aixm:Route aixm:RouteDME aixm:RouteSegment aixm:RulesProcedures aixm:Runway aixm:RunwayBlastPad aixm:RunwayCentrelinePoint aixm:RunwayDirection aixm:RunwayDirectionLightSystem aixm:RunwayElement aixm:RunwayMarking aixm:RunwayProtectArea aixm:RunwayProtectAreaLightSystem aixm:RunwayVisualRange aixm:SDF aixm:SafeAltitudeArea aixm:SeaplaneLandingArea aixm:SeaplaneRampSite aixm:SearchRescueService aixm:SecondarySurveillanceRadar aixm:SignificantPointInAirspace aixm:SpecialDate aixm:SpecialNavigationStation aixm:SpecialNavigationSystem aixm:StandMarking aixm:StandardInstrumentArrival aixm:StandardInstrumentDeparture aixm:StandardLevelColumn aixm:StandardLevelSector aixm:StandardLevelTable aixm:SurveyControlPoint aixm:TACAN aixm:TaxiHoldingPosition aixm:TaxiHoldingPositionLightSystem aixm:TaxiHoldingPositionMarking aixm:Taxiway aixm:TaxiwayElement aixm:TaxiwayLightSystem aixm:TaxiwayMarking aixm:TerminalArrivalArea aixm:TouchDownLiftOff aixm:TouchDownLiftOffLightSystem aixm:TouchDownLiftOffMarking aixm:TouchDownLiftOffSafeArea aixm:Unit aixm:UnplannedHolding aixm:VOR aixm:VerticalStructure aixm:VisualGlideSlopeIndicator aixm:WorkArea" table="aixm_feature" typeColumn="type">
+    <FIDMapping prefix="uuid.">
+      <Column name="uuid" type="string" />
       <UUIDGenerator />
     </FIDMapping>
 
@@ -32,58 +31,9 @@
     </Complex>
 
     <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="airport_heliport_timeslice" toColumns="fk_airport" orderColumns="id"/>
-      <Blob path="aixm:AirportHeliportTimeSlice" mapping="aixm_timeslice"/>
-    </Complex>
-
-  </FeatureTypeMapping>
-
-  <FeatureTypeMapping name="aixm:Airspace" table="airspace">
-    <FIDMapping prefix="airspace.uuid.">
-      <Column name="attr_gml_id" type="string" />
-      <UUIDGenerator />
-    </FIDMapping>
-
-    <Complex path="gml:identifier">
-      <Primitive path="text()" mapping="gml_identifier" />
-      <Primitive path="@codeSpace" mapping="'urn:uuid:'" />
-    </Complex>
-
-    <Geometry path="gml:boundedBy" mapping="gml_bounded_by" />
-
-    <Complex path="aixm:featureMetadata">
-      <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata"/>
-    </Complex>
-
-    <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="airspace_timeslice" toColumns="fk_airspace" orderColumns="id"/>
-      <Blob path="aixm:AirspaceTimeSlice" mapping="aixm_timeslice"/>
-    </Complex>
-
-  </FeatureTypeMapping>
-
-  <FeatureTypeMapping name="aixm:VerticalStructure" table="vertical_structure">
-    <FIDMapping prefix="vertical.structure.uuid.">
-      <Column name="attr_gml_id" type="string" />
-      <UUIDGenerator />
-    </FIDMapping>
-    <Complex path="gml:identifier">
-      <Primitive path="text()" mapping="gml_identifier" />
-      <Primitive path="@codeSpace" mapping="'urn:uuid:'" />
-    </Complex>
-
-    <Geometry path="gml:boundedBy" mapping="gml_bounded_by" />
-
-    <Complex path="aixm:featureMetadata">
-      <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata"/>
-    </Complex>
-
-    <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="vertical_structure_timeslice" toColumns="fk_vertical_structure" orderColumns="id"/>
-
-      <Blob path="aixm:VerticalStructureTimeSlice" mapping="aixm_timeslice"/>
-
-      <Complex path="aixm:VerticalStructureTimeSlice">
+      <Join fromColumns="uuid" table="aixm_timeslice" toColumns="feature_uuid" orderColumns="id"/>
+      <Blob path="*" mapping="binary_object"/>
+      <Complex path="*">
         <Primitive path="@gml:id" mapping="attr_gml_id" />
         <Complex path="gml:validTime">
           <Primitive path="@nilReason" mapping="(CASE WHEN $0.gml_validtime_gml_timeinstant IS NULL AND $0.gml_validtime_gml_timeperiod_begin IS NULL AND $0.gml_validtime_gml_timeperiod_end IS NULL THEN 'inapplicable' ELSE NULL END)" type="string" />
@@ -118,51 +68,14 @@
             </Complex>
           </Complex>
         </Complex>
-        <Complex path="aixm:name">
-          <Primitive path="text()" mapping="name_text" />
-        </Complex>
-        <Complex path="aixm:type">
-          <Primitive path="text()" mapping="type_text" />
-        </Complex>
-        <Complex path="aixm:lighted">
-          <Primitive path="text()" mapping="lighted_text" />
-        </Complex>
-        <Complex path="aixm:group">
-          <Primitive path="text()" mapping="group_text" />
-        </Complex>
-        <Complex path="aixm:part">
-          <Join fromColumns="id" table="vertical_structure_timeslice_part" toColumns="fk_timeslice" numbered="true" orderColumns="pos"/>
-          <Complex path="aixm:VerticalStructurePart">
-            <Primitive path="@gml:id" mapping="attr_gml_id" />
-            <Complex path="aixm:timeInterval" />
-            <Complex path="aixm:verticalExtent">
-              <Primitive path="text()" mapping="vertical_extent" />
-              <Primitive path="@uom" mapping="vertical_extent_uom" />
-            </Complex>
-            <Complex path="aixm:type">
-              <Primitive path="text()" mapping="type_text" />
-            </Complex>
-            <Complex path="aixm:mobile">
-              <Primitive path="text()" mapping="mobile_text" />
-            </Complex>
-            <Complex path="aixm:horizontalProjection_location">
-              <Complex path="aixm:ElevatedPoint">
-                <Geometry path="." mapping="horizontalprojection_location_point" />
-                <Complex path="aixm:elevation">
-                  <Primitive path="text()" mapping="horizontalprojection_location_elevation" />
-                  <Primitive path="@uom" mapping="horizontalprojection_location_elevation_uom" />
-                </Complex>
-              </Complex>
-            </Complex>
-          </Complex>
-        </Complex>
       </Complex>
     </Complex>
+
   </FeatureTypeMapping>
 
   <TableSetup deriveTablesFromMapping="true">
-    <TestSql>SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='airport_heliport')</TestSql>
-    <Sql>CREATE INDEX ON airport_heliport (gml_identifier)</Sql>
+    <TestSql>SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='aixm_feature')</TestSql>
+    <Sql>CREATE INDEX ON aixm_feature (gml_identifier)</Sql>
   </TableSetup>
 
 </SQLFeatureStore>

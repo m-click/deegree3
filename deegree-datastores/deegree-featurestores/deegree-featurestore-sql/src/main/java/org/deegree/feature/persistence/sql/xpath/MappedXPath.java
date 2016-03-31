@@ -152,6 +152,12 @@ public class MappedXPath {
             List<MappableStep> mapSteps = MappableNameStep.extractSteps( mapping.getPath() );
             if ( !mapSteps.isEmpty() && !steps.isEmpty() ) {
                 matchFound = mapSteps.get( 0 ).equals( steps.get( 0 ) );
+                if ( mapSteps.get( 0 ) instanceof MappableNameStep ) {
+                    final MappableNameStep nameStep = (MappableNameStep) mapSteps.get( 0 );
+                    if (nameStep.getNodeName().getLocalPart().equals( "*" )) {
+                        matchFound = true;
+                    }
+                }
             } else if ( mapSteps.isEmpty() && steps.isEmpty() ) {
                 matchFound = true;
             } else if ( !mapSteps.isEmpty() && mapSteps.get( 0 ) instanceof TextStep ) {
