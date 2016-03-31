@@ -40,6 +40,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import org.deegree.feature.Feature;
+import org.deegree.feature.types.FeatureType;
 
 /**
  * Builds {@link Feature} instances from SQL result sets.
@@ -63,9 +64,11 @@ public interface FeatureBuilder {
      * 
      * @param rs
      *            SQL result set, must not be <code>null</code>
+     * @param ft
+     *            feature type, can be <code>null</code> (unknown at query time)
      * @return created {@link Feature} instance, never <code>null</code>
      * @throws SQLException
      */
-    public Feature buildFeature( ResultSet rs )
+    public Feature buildFeature( ResultSet rs, FeatureType ft )
                             throws SQLException;
 }

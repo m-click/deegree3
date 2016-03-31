@@ -130,8 +130,6 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final SQLFeatureStore fs;
 
-    private final FeatureType ft;
-
     private final FeatureTypeMapping ftMapping;
 
     private final Connection conn;
@@ -151,8 +149,6 @@ public class FeatureBuilderRelational implements FeatureBuilder {
      * 
      * @param fs
      *            feature store, must not be <code>null</code>
-     * @param ft
-     *            feature type, must not be <code>null</code>
      * @param ftMapping
      *            feature type mapping, must not be <code>null</code>
      * @param conn
@@ -160,10 +156,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
      * @param escalationPolicy
      *            the void escalation policy, must not be <code>null</code>
      */
-    public FeatureBuilderRelational( SQLFeatureStore fs, FeatureType ft, FeatureTypeMapping ftMapping, Connection conn,
+    public FeatureBuilderRelational( SQLFeatureStore fs, FeatureTypeMapping ftMapping, Connection conn,
                                      String ftTableAlias, boolean nullEscalation ) {
         this.fs = fs;
-        this.ft = ft;
         this.ftMapping = ftMapping;
         this.conn = conn;
         this.tableAlias = ftTableAlias;
@@ -184,6 +179,9 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     public List<String> getInitialSelectList() {
         for ( Pair<SQLIdentifier, BaseType> fidColumn : ftMapping.getFidMapping().getColumns() ) {
             addColumn( qualifiedSqlExprToRsIdx, tableAlias + "." + fidColumn.first.getName() );
+        }
+        if ( ftMapping.getTypeColumn() != null ) {
+            addColumn( qualifiedSqlExprToRsIdx, tableAlias + "." + ftMapping.getTypeColumn().getName() );
         }
         for ( Mapping mapping : ftMapping.getMappings() ) {
             addSelectColumns( mapping, qualifiedSqlExprToRsIdx, true );
@@ -262,7 +260,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     }
 
     @Override
-    public Feature buildFeature( ResultSet rs )
+    public Feature buildFeature( final ResultSet rs, FeatureType ft )
                             throws SQLException {
 
         Feature feature = null;
@@ -273,6 +271,12 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             for ( int i = 1; i < fidColumns.size(); i++ ) {
                 gmlId += ftMapping.getFidMapping().getDelimiter()
                          + rs.getObject( qualifiedSqlExprToRsIdx.get( tableAlias + "." + fidColumns.get( i ).first ) );
+            }
+            if ( ftMapping.getTypeColumn() != null ) {
+                final String ftName = rs.getString( qualifiedSqlExprToRsIdx.get( tableAlias + "."
+                                                                                 + ftMapping.getTypeColumn().getName() ) );
+                LOG.debug ("Ambigous feature type mapping: Using feature type from type column: " + ftName);
+                ft = fs.getSchema().getFeatureType( QName.valueOf( ftName ) );
             }
             if ( fs.getCache() != null ) {
                 feature = (Feature) fs.getCache().get( gmlId );
@@ -398,10 +402,10 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private Property recreatePropertyFromGml( final PropertyType pt, final GenericXMLElement particle ) {
         try {
-            final GMLSchemaInfoSet gmlSchema = ft.getSchema().getGMLSchema();
+            final GMLSchemaInfoSet gmlSchema = fs.getSchema().getGMLSchema();
             final ByteArrayOutputStream bos = new ByteArrayOutputStream();
             final XMLStreamWriter xmlWriter = XMLOutputFactory.newInstance().createXMLStreamWriter( bos );
-            final GMLVersion version = ft.getSchema().getGMLSchema().getVersion();
+            final GMLVersion version = fs.getSchema().getGMLSchema().getVersion();
             final GMLStreamWriter gmlWriter = GMLOutputFactory.createGMLStreamWriter( version, xmlWriter );
             gmlWriter.setNamespaceBindings( gmlSchema.getNamespacePrefixes() );
             final GmlXlinkOptions resolveState = new GmlXlinkOptions();
@@ -412,7 +416,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             final InputStream is = new ByteArrayInputStream( bos.toByteArray() );
             final XMLStreamReader xmlReader = XMLInputFactory.newInstance().createXMLStreamReader( is );
             final GMLStreamReader gmlReader = GMLInputFactory.createGMLStreamReader( version, xmlReader );
-            gmlReader.setApplicationSchema( ft.getSchema() );
+            gmlReader.setApplicationSchema( fs.getSchema() );
             gmlReader.setLaxMode( true );
             final Property property = gmlReader.getFeatureReader().parseProperty( new XMLStreamReaderWrapper(
                                                                                                               xmlReader,

@@ -44,6 +44,7 @@ import org.deegree.cs.coordinatesystems.ICRS;
 import org.deegree.feature.Feature;
 import org.deegree.feature.persistence.sql.FeatureBuilder;
 import org.deegree.feature.persistence.sql.SQLFeatureStore;
+import org.deegree.feature.types.FeatureType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,7 +92,7 @@ public class FeatureBuilderBlob implements FeatureBuilder {
     }
 
     @Override
-    public Feature buildFeature( ResultSet rs )
+    public Feature buildFeature( ResultSet rs, FeatureType ft )
                             throws SQLException {
         Feature feature = null;
         try {
