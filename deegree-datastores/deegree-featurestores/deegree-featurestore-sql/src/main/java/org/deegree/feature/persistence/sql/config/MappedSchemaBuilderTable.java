@@ -261,7 +261,7 @@ public class MappedSchemaBuilderTable extends AbstractMappedSchemaBuilder {
         FeatureType ft = new GenericFeatureType( ftName, pts, false );
         ftNameToFt.put( ftName, ft );
 
-        FeatureTypeMapping ftMapping = new FeatureTypeMapping( ftName, table, fidMapping, mappings );
+        FeatureTypeMapping ftMapping = new FeatureTypeMapping( ftName, table, fidMapping, mappings, null );
         ftNameToMapping.put( ftName, ftMapping );
     }
 
@@ -283,7 +283,7 @@ public class MappedSchemaBuilderTable extends AbstractMappedSchemaBuilder {
         FeatureType ft = new GenericFeatureType( ftName, pts, false );
         ftNameToFt.put( ftName, ft );
 
-        FeatureTypeMapping ftMapping = new FeatureTypeMapping( ftName, table, fidMapping, mappings );
+        FeatureTypeMapping ftMapping = new FeatureTypeMapping( ftName, table, fidMapping, mappings, null );
         ftNameToMapping.put( ftName, ftMapping );
     }
 

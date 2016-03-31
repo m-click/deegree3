@@ -326,6 +326,10 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
     private Collection<FeatureTypeMapping> buildFtMappings( FeatureTypeMappingJAXB ftMappingConf )
                             throws FeatureStoreException {
         final Collection<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
+        SQLIdentifier typeColumn = null;
+        if ( ftMappingConf.getTypeColumn() != null ) {
+            typeColumn = new SQLIdentifier( ftMappingConf.getTypeColumn() );
+        }
         for ( final QName ftName : ftMappingConf.getName() ) {
             TableName ftTable = new TableName( ftMappingConf.getTable() );
             FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );
@@ -335,7 +339,7 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
                 particleMappings.add( buildMapping( ftTable, new Pair<XSElementDeclaration, Boolean>( elDecl, TRUE ),
                                                     particle.getValue(), false ) );
             }
-            ftMappings.add( new FeatureTypeMapping( ftName, ftTable, fidMapping, particleMappings ) );
+            ftMappings.add( new FeatureTypeMapping( ftName, ftTable, fidMapping, particleMappings, typeColumn ) );
         }
         return ftMappings;
     }

@@ -42,6 +42,7 @@ import java.util.Map;
 
 import javax.xml.namespace.QName;
 
+import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
 import org.deegree.commons.utils.Pair;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
@@ -71,6 +72,8 @@ public class FeatureTypeMapping {
 
     private final List<Mapping> particles = new ArrayList<Mapping>();
 
+    private final SQLIdentifier typeColumn;
+
     /**
      * Creates a new {@link FeatureTypeMapping} instance.
      * 
@@ -82,8 +85,11 @@ public class FeatureTypeMapping {
      *            mapping for the feature id, must not be <code>null</code>
      * @param particleMappings
      *            particle mappings for the feature type, must not be <code>null</code>
+     * @param typeColumn
+     *            column that stores the name of the feature type, can be <code>null</code> (not stored)
      */
-    public FeatureTypeMapping( QName ftName, TableName table, FIDMapping fidMapping, List<Mapping> particleMappings ) {
+    public FeatureTypeMapping( QName ftName, TableName table, FIDMapping fidMapping, List<Mapping> particleMappings,
+                               SQLIdentifier typeColumn ) {
         this.ftName = ftName;
         this.table = table;
         this.fidMapping = fidMapping;
@@ -99,6 +105,7 @@ public class FeatureTypeMapping {
                 this.particles.add( mapping );
             }
         }
+        this.typeColumn = typeColumn;
     }
 
     /**
@@ -179,6 +186,15 @@ public class FeatureTypeMapping {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the column that stores the name of the feature type.
+     *
+     * @return column that stores the name of the feature type, can be <code>null</code> (not stored)
+     */
+    public SQLIdentifier getTypeColumn() {
+        return typeColumn;
     }
 
     private Pair<TableName, GeometryMapping> getDefaultGeometryMapping( TableName table, CompoundMapping complex ) {

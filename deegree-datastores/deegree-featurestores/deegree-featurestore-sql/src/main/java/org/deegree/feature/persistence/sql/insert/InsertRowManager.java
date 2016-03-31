@@ -170,6 +170,9 @@ public class InsertRowManager {
         FeatureRow featureRow = null;
         try {
             featureRow = lookupFeatureRow( feature );
+            if ( ftMapping.getTypeColumn() != null ) {
+                featureRow.addPreparedArgument( ftMapping.getTypeColumn(), feature.getName().toString() );
+            }
 
             // tracks all rows of this feature instance
             List<InsertRow> allRows = new ArrayList<InsertRow>();
