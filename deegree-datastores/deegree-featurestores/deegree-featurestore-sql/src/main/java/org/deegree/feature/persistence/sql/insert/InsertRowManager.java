@@ -35,12 +35,15 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql.insert;
 
+import static org.deegree.protocol.wfs.transaction.action.UpdateAction.INSERT_AFTER;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -122,10 +125,10 @@ public class InsertRowManager {
     private final Map<InsertRow, List<InsertRow>> rowToChildRows = new HashMap<InsertRow, List<InsertRow>>();
 
     // values: rows that have not been inserted yet
-    private final Set<InsertRow> delayedRows = new HashSet<InsertRow>();
+    private final Set<InsertRow> delayedRows = new LinkedHashSet<InsertRow>();
 
     // values: rows that have not been inserted yet, but can be inserted (no parents)
-    private final Set<InsertRow> rootRows = new HashSet<InsertRow>();
+    private final Set<InsertRow> rootRows = new LinkedHashSet<InsertRow>();
 
     /**
      * Creates a new {@link InsertRowManager} instance.
@@ -171,7 +174,7 @@ public class InsertRowManager {
             allRows.add( featureRow );
 
             for ( Mapping particleMapping : ftMapping.getMappings() ) {
-                buildInsertRows( feature, particleMapping, featureRow, allRows );
+                buildInsertRows( feature, particleMapping, featureRow, allRows, 1 );
             }
 
             LOG.debug( "Built rows for feature '" + feature.getId() + "': " + allRows.size() );
@@ -224,7 +227,12 @@ public class InsertRowManager {
             List<InsertRow> allRows = new ArrayList<InsertRow>();
             allRows.add( featureRow );
 
-            buildInsertRows( feature, mapping, featureRow, allRows );
+            int index = replacement.getIndex();
+            if ( replacement.getUpdateAction() == INSERT_AFTER ) {
+                index++;
+            }
+            buildInsertRows( feature, mapping, featureRow, allRows, index );
+
 
             LOG.debug( "Built rows for feature '" + feature.getId() + "': " + allRows.size() );
 
@@ -299,7 +307,7 @@ public class InsertRowManager {
     }
 
     public void buildInsertRows( final TypedObjectNode particle, final Mapping mapping, final InsertRow row,
-                                 List<InsertRow> additionalRows )
+                                 List<InsertRow> additionalRows, int childIdx )
                             throws FilterEvaluationException, FeatureStoreException {
 
         List<TableJoin> jc = mapping.getJoinedTable();
@@ -311,7 +319,6 @@ public class InsertRowManager {
 
         TypedObjectNodeXPathEvaluator evaluator = new TypedObjectNodeXPathEvaluator();
         TypedObjectNode[] values = evaluator.eval( particle, mapping.getPath() );
-        int childIdx = 1;
         for ( TypedObjectNode value : values ) {
             InsertRow currentRow = row;
             if ( jc != null && !( mapping instanceof FeatureMapping ) ) {
@@ -407,7 +414,7 @@ public class InsertRowManager {
                 }
             } else if ( mapping instanceof CompoundMapping ) {
                 for ( Mapping child : ( (CompoundMapping) mapping ).getParticles() ) {
-                    buildInsertRows( value, child, currentRow, additionalRows );
+                    buildInsertRows( value, child, currentRow, additionalRows, childIdx );
                 }
             } else if ( mapping instanceof SqlExpressionMapping ) {
                 // nothing to do

@@ -37,6 +37,7 @@ package org.deegree.feature.persistence.sql;
 
 import static org.deegree.feature.Features.findFeaturesAndGeometries;
 import static org.deegree.feature.types.property.GeometryPropertyType.CoordinateDimension.DIM_2;
+import static org.deegree.protocol.wfs.transaction.action.UpdateAction.REPLACE;
 
 import java.io.ByteArrayOutputStream;
 import java.sql.Connection;
@@ -724,6 +725,7 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
     public List<String> performUpdate( QName ftName, List<ParsedPropertyReplacement> replacementProps, Filter filter,
                                        Lock lock )
                             throws FeatureStoreException {
+
         LOG.debug( "Updating feature type '" + ftName + "', filter: " + filter + ", replacement properties: "
                    + replacementProps.size() );
         List<String> updatedFids = null;
@@ -1008,19 +1010,20 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
                             throws FilterEvaluationException, FeatureStoreException, SQLException {
         UpdateAction action = replacement.getUpdateAction();
         if ( action == null ) {
-            action = UpdateAction.INSERT_AFTER;
+            action = REPLACE;
         }
         switch ( action ) {
         case INSERT_BEFORE:
         case REMOVE:
         case REPLACE:
-            LOG.warn( "Updating of multi properties is currently only supported for 'insertAfter' update action. Omitting." );
-            break;
+            final String msg = "Updating of multi properties is currently only supported for 'insertAfter' update action.";
+            throw new FeatureStoreException( msg );
         case INSERT_AFTER:
             break;
         default:
             break;
         }
+        checkUpdatePositionValidity( replacement, mapping );
         InsertRowManager mgr = new InsertRowManager( fs, conn, null );
         List<Property> props = Collections.singletonList( replacement.getNewValue() );
         for ( ResourceId id : list ) {
@@ -1028,6 +1031,22 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
             FeatureType featureType = schema.getFeatureType( ftMapping.getFeatureType() );
             Feature f = featureType.newFeature( id.getRid(), props, null );
             mgr.updateFeature( f, ftMapping, analysis.getIdKernels(), mapping, replacement );
+        }
+    }
+
+    private void checkUpdatePositionValidity( final ParsedPropertyReplacement replacement, final Mapping mapping )
+                            throws FeatureStoreException {
+        final String propName = replacement.getNewValue().getName().getLocalPart();
+        if ( mapping.getJoinedTable().get( 0 ).isNumberedOrder() ) {
+            if ( replacement.getIndex() == -1 ) {
+                final String msg = "Multi property join table uses numbered order column, so inserting of new properties via update is only possible "
+                                   + "using number predicates, e.g. '" + propName + "[1]'.";
+                throw new FeatureStoreException( msg );
+            }
+        } else if ( replacement.getIndex() != -1 ) {
+            final String msg = "Multi property join table uses non-numbered order column (auto increment), so inserting of new properties via update is only possible "
+                               + "at the end, e.g. '" + propName + "[position()=last()]'.";
+            throw new FeatureStoreException( msg );
         }
     }
 

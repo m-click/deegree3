@@ -63,7 +63,7 @@ public class ParsedPropertyReplacement {
      * @param path
      *            never <code>null</code>
      * @param index
-     *            the index of the matched property
+     *            the index of the matched property (-1: last)
      */
     public ParsedPropertyReplacement( Property newProp, UpdateAction action, ValueReference path, int index ) {
         this.newProp = newProp;
@@ -94,7 +94,7 @@ public class ParsedPropertyReplacement {
     }
 
     /**
-     * @return the index of the matched property
+     * @return the index of the matched property (-1: last)
      */
     public int getIndex() {
         return index;

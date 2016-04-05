@@ -104,6 +104,7 @@ import org.deegree.feature.property.GenericProperty;
 import org.deegree.feature.types.AppSchema;
 import org.deegree.feature.types.FeatureType;
 import org.deegree.feature.types.property.CustomPropertyType;
+import org.deegree.feature.types.property.ObjectPropertyType;
 import org.deegree.filter.Filter;
 import org.deegree.filter.Filters;
 import org.deegree.filter.IdFilter;
@@ -129,7 +130,9 @@ import org.deegree.protocol.wfs.transaction.action.Update;
 import org.deegree.protocol.wfs.transaction.action.UpdateAction;
 import org.deegree.services.controller.utils.HttpResponseBuffer;
 import org.deegree.services.i18n.Messages;
+import org.jaxen.expr.EqualityExpr;
 import org.jaxen.expr.Expr;
+import org.jaxen.expr.FunctionCallExpr;
 import org.jaxen.expr.LocationPath;
 import org.jaxen.expr.NameStep;
 import org.jaxen.expr.NumberExpr;
@@ -559,33 +562,68 @@ class TransactionHandler {
         }
     }
 
-    private Pair<QName, Integer> trySimpleMultiProp( Expr expr, FeatureType ft )
+    Pair<QName, Integer> getPropNameAndIndex( Expr expr, QName ftName )
                             throws OWSException {
         if ( !( expr instanceof LocationPath ) ) {
-            throw new OWSException( "Cannot update property on feature type '" + ft.getName()
+            throw new OWSException( "Cannot update property on feature type '" + ftName
                                     + "'. Complex property paths are not supported.", OPERATION_NOT_SUPPORTED );
         }
         Object obj = ( (LocationPath) expr ).getSteps().get( 0 );
         if ( !( obj instanceof NameStep ) ) {
-            throw new OWSException( "Cannot update property on feature type '" + ft.getName()
+            throw new OWSException( "Cannot update property on feature type '" + ftName
                                     + "'. Complex property paths are not supported.", OPERATION_NOT_SUPPORTED );
         }
         NameStep namestep = (NameStep) obj;
         obj = namestep.getPredicates().get( 0 );
         if ( !( obj instanceof Predicate ) ) {
-            throw new OWSException( "Cannot update property on feature type '" + ft.getName()
+            throw new OWSException( "Cannot update property on feature type '" + ftName
                                     + "'. Complex property paths are not supported.", OPERATION_NOT_SUPPORTED );
         }
         Predicate pred = (Predicate) obj;
         expr = pred.getExpr();
-        if ( !( expr instanceof NumberExpr ) ) {
-            throw new OWSException( "Cannot update property on feature type '" + ft.getName()
-                                    + "'. Complex property paths are not supported.", OPERATION_NOT_SUPPORTED );
+        int index = 0;
+        if ( isPositionLastExpr( expr ) ) {
+            index = -1;
+        } else {
+            if ( !( expr instanceof NumberExpr ) ) {
+                throw new OWSException( "Cannot update property on feature type '" + ftName
+                                        + "'. Complex property paths are not supported.", OPERATION_NOT_SUPPORTED );
+            }
+            NumberExpr ne = (NumberExpr) expr;
+            index = Math.round( Float.parseFloat( ne.getText() ) ) - 1;
         }
-        NumberExpr ne = (NumberExpr) expr;
-        int index = Math.round( Float.parseFloat( ne.getText() ) );
-        return new Pair<QName, Integer>( new QName( ft.getName().getNamespaceURI(), namestep.getLocalName() ),
-                                         index - 1 );
+        final QName propName = new QName( ftName.getNamespaceURI(), namestep.getLocalName() );
+        return new Pair<QName, Integer>( propName, index );
+    }
+
+    private boolean isPositionLastExpr( final Expr expr ) {
+        if ( !( expr instanceof EqualityExpr ) ) {
+            return false;
+        }
+        final EqualityExpr equals = (EqualityExpr) expr;
+        final Expr lhs = equals.getLHS();
+        if ( !( lhs instanceof FunctionCallExpr ) ) {
+            return false;
+        }
+        final FunctionCallExpr lhsFunction = (FunctionCallExpr) lhs;
+        if ( !lhsFunction.getFunctionName().equals( "position" ) ) {
+            return false;
+        }
+        if ( !lhsFunction.getParameters().isEmpty() ) {
+            return false;
+        }
+        final Expr rhs = equals.getRHS();
+        if ( !( rhs instanceof FunctionCallExpr ) ) {
+            return false;
+        }
+        final FunctionCallExpr rhsFunction = (FunctionCallExpr) rhs;
+        if ( !rhsFunction.getFunctionName().equals( "last" ) ) {
+            return false;
+        }
+        if ( !rhsFunction.getParameters().isEmpty() ) {
+            return false;
+        }
+        return true;
     }
 
     private List<ParsedPropertyReplacement> getReplacementProps( Update update, FeatureType ft, GMLVersion inputFormat )
@@ -598,7 +636,7 @@ class TransactionHandler {
             QName propName = replacement.getPropertyName().getAsQName();
             Pair<QName, Integer> simpleMultiProp = null;
             if ( propName == null ) {
-                simpleMultiProp = trySimpleMultiProp( replacement.getPropertyName().getAsXPath(), ft );
+                simpleMultiProp = getPropNameAndIndex( replacement.getPropertyName().getAsXPath(), ft.getName() );
                 propName = simpleMultiProp.first;
             }
 
@@ -629,6 +667,8 @@ class TransactionHandler {
                     if ( pt instanceof CustomPropertyType && propValue instanceof GenericXMLElement ) {
                         prop = new GenericProperty( pt, propValue );
                         prop.setChildren( ( (GenericXMLElement) propValue ).getChildren() );
+                    } else if ( pt instanceof ObjectPropertyType ) {
+                        prop = new GenericProperty( pt, propValue );
                     }
 
                     ParsedPropertyReplacement repl = new ParsedPropertyReplacement( prop, updateAction,

@@ -5,9 +5,8 @@ CREATE TABLE airport_heliport (
   CONSTRAINT airport_heliport_pkey PRIMARY KEY (attr_gml_id)
 );
 CREATE TABLE airport_heliport_timeslice (
-  id serial,
+  id serial NOT NULL,
   fk_airport text REFERENCES airport_heliport ON DELETE CASCADE,
-  pos integer NOT NULL,
   aixm_timeslice bytea,
   CONSTRAINT airport_heliport_timeslice_pkey PRIMARY KEY (id)
 );
@@ -18,9 +17,8 @@ CREATE TABLE airspace (
   CONSTRAINT airspace_pkey PRIMARY KEY (attr_gml_id)
 );
 CREATE TABLE airspace_timeslice (
-  id serial,
+  id serial NOT NULL,
   fk_airspace text REFERENCES airspace ON DELETE CASCADE,
-  pos integer NOT NULL,
   aixm_timeslice bytea,
   CONSTRAINT airspace_timeslice_pkey PRIMARY KEY (id)
 );
@@ -31,9 +29,8 @@ CREATE TABLE vertical_structure (
   CONSTRAINT vertical_structure_pkey PRIMARY KEY (attr_gml_id)
 );
 CREATE TABLE vertical_structure_timeslice (
-  id serial,
+  id serial NOT NULL,
   fk_vertical_structure text REFERENCES vertical_structure ON DELETE CASCADE,
-  pos integer NOT NULL,
   aixm_timeslice bytea,
   attr_gml_id text,
   gml_validtime_gml_timeinstant timestamp,

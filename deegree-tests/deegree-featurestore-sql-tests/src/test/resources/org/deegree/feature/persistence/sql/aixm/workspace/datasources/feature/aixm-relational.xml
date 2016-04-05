@@ -29,7 +29,7 @@
     </Complex>
 
     <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="airport_heliport_timeslice" toColumns="fk_airport" numbered="true" orderColumns="pos"/>
+      <Join fromColumns="attr_gml_id" table="airport_heliport_timeslice" toColumns="fk_airport" orderColumns="id"/>
       <Blob path="aixm:AirportHeliportTimeSlice" mapping="aixm_timeslice"/>
     </Complex>
 
@@ -51,7 +51,7 @@
     </Complex>
 
     <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="airspace_timeslice" toColumns="fk_airspace" numbered="true" orderColumns="pos"/>
+      <Join fromColumns="attr_gml_id" table="airspace_timeslice" toColumns="fk_airspace" orderColumns="id"/>
       <Blob path="aixm:AirspaceTimeSlice" mapping="aixm_timeslice"/>
     </Complex>
 
@@ -72,7 +72,7 @@
     </Complex>
 
     <Complex path="aixm:timeSlice">
-      <Join fromColumns="attr_gml_id" table="vertical_structure_timeslice" toColumns="fk_vertical_structure" numbered="true" orderColumns="pos"/>
+      <Join fromColumns="attr_gml_id" table="vertical_structure_timeslice" toColumns="fk_vertical_structure" orderColumns="id"/>
 
       <Blob path="aixm:VerticalStructureTimeSlice" mapping="aixm_timeslice"/>
 
