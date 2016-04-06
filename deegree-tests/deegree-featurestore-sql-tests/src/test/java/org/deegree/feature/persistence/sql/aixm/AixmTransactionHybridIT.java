@@ -24,8 +24,12 @@ import org.deegree.feature.persistence.sql.SQLFeatureStore;
 import org.deegree.feature.persistence.sql.SQLFeatureStoreTestCase;
 import org.deegree.filter.Filter;
 import org.deegree.filter.FilterEvaluationException;
+import org.deegree.filter.Operator;
 import org.deegree.filter.OperatorFilter;
 import org.deegree.filter.expression.ValueReference;
+import org.deegree.filter.spatial.BBOX;
+import org.deegree.geometry.Envelope;
+import org.deegree.geometry.GeometryFactory;
 import org.deegree.gml.GMLInputFactory;
 import org.deegree.gml.GMLStreamReader;
 import org.deegree.protocol.wfs.transaction.action.ParsedPropertyReplacement;
@@ -115,6 +119,43 @@ public class AixmTransactionHybridIT extends SQLFeatureStoreTestCase {
         final Feature featureAfter = fs.query( query ).toCollection().iterator().next();
         assertEquals( 6, featureAfter.getProperties( TIMESLICE_PROP_NAME ).size() );
         assertGmlEquals( featureAfter, "aixm/expected/crane_5_timeslice_added_after.xml" );
+    }
+
+    public void testUpdateGmlBoundedByEnlargement()
+                            throws Exception {
+
+        // build query that targets an area slightly beside the existing feature CRANE_5
+        final Envelope env = new GeometryFactory().createEnvelope( 52.372, -31.9499, 52.373, -31.951, null );
+        final Operator op = new BBOX( env );
+        final Filter filter = new OperatorFilter( op );
+        final Query query = new Query( VERTICAL_STRUCTURE_NAME, filter, -1, -1, -1.0 );
+
+        // no matches
+        final FeatureCollection before = fs.query( query ).toCollection();
+        assertEquals( 0, before.size() );
+
+        // now insert another timeslice with a sightly different geometry
+        final FeatureStoreTransaction ta = fs.acquireTransaction();
+        try {
+            final List<ParsedPropertyReplacement> replacements = new ArrayList<ParsedPropertyReplacement>();
+            final PropertyType propDecl = fs.getSchema().getFeatureType( VERTICAL_STRUCTURE_NAME ).getPropertyDeclaration( TIMESLICE_PROP_NAME );
+            final Property newProp = readGmlProperty( "aixm/data/crane5_vertical_structure_timeslice_moved.xml", propDecl );
+            final UpdateAction action = INSERT_AFTER;
+            final ValueReference path = new ValueReference( TIMESLICE_PROP_NAME );
+            final int index = -1;
+            final ParsedPropertyReplacement replacement = new ParsedPropertyReplacement( newProp, action, path, index );
+            replacements.add( replacement );
+            ta.performUpdate( VERTICAL_STRUCTURE_NAME, replacements,
+                              buildGmlIdentifierFilter( "8c755520-b42b-11e3-a5e2-0800500c9a66" ), null );
+            ta.commit();
+        } catch ( Exception e ) {
+            ta.rollback();
+            throw e;
+        }
+
+        // now the updated feature matches the filter
+        final FeatureCollection after = fs.query( query ).toCollection();
+        assertEquals( 1, after.size() );
     }
 
     protected Property readGmlProperty( final String location, final PropertyType propDecl )

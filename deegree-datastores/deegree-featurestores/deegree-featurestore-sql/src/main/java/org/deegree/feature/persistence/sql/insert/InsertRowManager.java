@@ -42,7 +42,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +77,11 @@ import org.deegree.feature.persistence.sql.rules.SqlExpressionMapping;
 import org.deegree.feature.types.FeatureType;
 import org.deegree.feature.xpath.TypedObjectNodeXPathEvaluator;
 import org.deegree.filter.FilterEvaluationException;
+import org.deegree.geometry.Envelope;
+import org.deegree.geometry.Geometries;
 import org.deegree.geometry.Geometry;
 import org.deegree.gml.reference.FeatureReference;
+import org.deegree.gml.schema.GMLSchemaInfoSet;
 import org.deegree.protocol.wfs.transaction.action.IDGenMode;
 import org.deegree.protocol.wfs.transaction.action.ParsedPropertyReplacement;
 import org.deegree.sqldialect.SQLDialect;
@@ -319,6 +321,15 @@ public class InsertRowManager {
 
         TypedObjectNodeXPathEvaluator evaluator = new TypedObjectNodeXPathEvaluator();
         TypedObjectNode[] values = evaluator.eval( particle, mapping.getPath() );
+
+        if ( values.length == 0 && isGmlBoundedBy( mapping ) ) {
+            final Geometry geom = getFeatureEnvelopeAsGeometry( (Feature) particle );
+            if ( geom != null ) {
+                values = new TypedObjectNode[1];
+                values[0] = geom;
+            }
+        }
+
         for ( TypedObjectNode value : values ) {
             InsertRow currentRow = row;
             if ( jc != null && !( mapping instanceof FeatureMapping ) ) {
@@ -344,7 +355,12 @@ public class InsertRowManager {
                 if ( !( me instanceof DBField ) ) {
                     LOG.debug( "Skipping geometry mapping. Not mapped to database column." );
                 } else {
-                    Geometry geom = (Geometry) getPropValue( value );
+                    Geometry geom = null;
+                    if (value instanceof Geometry) {
+                        geom = (Geometry) value;
+                    } else {
+                        geom = (Geometry) getPropValue( value );
+                    }
                     @SuppressWarnings("unchecked")
                     ParticleConverter<Geometry> converter = (ParticleConverter<Geometry>) fs.getConverter( mapping );
                     String column = ( (DBField) me ).getColumn();
@@ -568,4 +584,26 @@ public class InsertRowManager {
         return delayedRows.size();
     }
 
+    private boolean isGmlBoundedBy( final Mapping mapping ) {
+        final GMLSchemaInfoSet gmlSchema = fs.getSchema().getGMLSchema();
+        if ( gmlSchema == null ) {
+            return false;
+        }
+        final QName name = mapping.getPath().getAsQName();
+        return name != null && "boundedBy".equals( name.getLocalPart() )
+               && gmlSchema.getVersion().getNamespace().equals( name.getNamespaceURI() );
+    }
+
+    private Geometry getFeatureEnvelopeAsGeometry( final Feature feature ) {
+        Geometry bboxGeom = null;
+        try {
+            Envelope bbox = feature.getEnvelope();
+            if ( bbox != null ) {
+                bboxGeom = Geometries.getAsGeometry( bbox );
+            }
+        } catch ( Exception e ) {
+            LOG.warn( "Unable to determine bbox of feature with id '" + feature.getId() + "': " + e.getMessage() );
+        }
+        return bboxGeom;
+    }
 }

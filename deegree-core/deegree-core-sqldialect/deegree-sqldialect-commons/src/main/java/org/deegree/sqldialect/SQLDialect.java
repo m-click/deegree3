@@ -254,4 +254,15 @@ public interface SQLDialect {
      */
     String getDBBlobType();
 
+    /**
+     * Returns an SQL snippet for calculating the envelope of two SQL geometries.
+     *
+     * @param geometry1
+     *            first geometry, must not be <code>null</code>
+     * @param geometry2
+     *            second geometry, must not be <code>null</code>
+     * @return SQL expression for retrieving the envelope, never <code>null</code>
+     */
+    String getCalculateEnvelopeExpression( final String geometry1, final String geometry2 );
+
 }

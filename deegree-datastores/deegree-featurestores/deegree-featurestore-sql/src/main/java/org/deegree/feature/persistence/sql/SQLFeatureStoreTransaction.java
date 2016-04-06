@@ -37,6 +37,8 @@ package org.deegree.feature.persistence.sql;
 
 import static org.deegree.feature.Features.findFeaturesAndGeometries;
 import static org.deegree.feature.types.property.GeometryPropertyType.CoordinateDimension.DIM_2;
+import static org.deegree.protocol.wfs.transaction.action.UpdateAction.INSERT_AFTER;
+import static org.deegree.protocol.wfs.transaction.action.UpdateAction.INSERT_BEFORE;
 import static org.deegree.protocol.wfs.transaction.action.UpdateAction.REPLACE;
 
 import java.io.ByteArrayOutputStream;
@@ -72,6 +74,7 @@ import org.deegree.commons.utils.Pair;
 import org.deegree.cs.coordinatesystems.ICRS;
 import org.deegree.feature.Feature;
 import org.deegree.feature.FeatureCollection;
+import org.deegree.feature.GenericFeature;
 import org.deegree.feature.GenericFeatureCollection;
 import org.deegree.feature.persistence.BBoxTracker;
 import org.deegree.feature.persistence.FeatureInspector;
@@ -858,14 +861,29 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
 
         int updated = 0;
         PreparedStatement stmt = null;
+
+        // if gml:boundedBy is mapped explicitly, envelope column needs to be updated
+        final GeometryMapping gmlBoundedByMapping = getGmlBoundedByMapping( ftMapping );
+        Geometry envelopeExtension = null;
+        if ( gmlBoundedByMapping != null ) {
+            for ( final ParsedPropertyReplacement replacementProp : replacementProps ) {
+                if ( replacementProp.getUpdateAction() != INSERT_AFTER && replacementProp.getUpdateAction() != INSERT_BEFORE ) {
+                    final String msg = "Cannot perform update. Feature envelope (gml:boundedBy) is mapped and update action is neither insertAfter nor insertBefore.";
+                    throw new FeatureStoreException( msg );
+                }
+            }
+            envelopeExtension = getBbox( replacementProps );
+        }
+
         try {
             String sql = createRelationalUpdateStatement( ftMapping, fidMapping, replacementProps,
-                                                          filter.getSelectedIds() );
+                                                          filter.getSelectedIds(), gmlBoundedByMapping );
 
             if ( sql != null ) {
                 LOG.debug( "Update: " + sql );
                 stmt = conn.prepareStatement( sql.toString() );
-                setRelationalUpdateValues( replacementProps, ftMapping, stmt, filter, fidMapping );
+                setRelationalUpdateValues( replacementProps, ftMapping, stmt, filter, fidMapping, envelopeExtension,
+                                           gmlBoundedByMapping );
                 int[] updates = stmt.executeBatch();
                 for ( int noUpdated : updates ) {
                     updated += noUpdated;
@@ -881,9 +899,29 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
         return new ArrayList<String>( filter.getMatchingIds() );
     }
 
+    private GeometryMapping getGmlBoundedByMapping( final FeatureTypeMapping ftMapping ) {
+        for ( Mapping mapping : ftMapping.getMappings() ) {
+            final QName elName = mapping.getPath().getAsQName();
+            if ( elName != null && elName.getLocalPart().equals( "boundedBy" ) ) {
+                return (GeometryMapping) mapping;
+            }
+        }
+        return null;
+    }
+
+    private Geometry getBbox( final List<ParsedPropertyReplacement> replacementProps ) {
+        final List<Property> props = new ArrayList<Property>();
+        for ( final ParsedPropertyReplacement replacementProp : replacementProps ) {
+            if ( replacementProp.getNewValue() != null ) {
+                props.add( replacementProp.getNewValue() );
+            }
+        }
+        return getFeatureEnvelopeAsGeometry( new GenericFeature( null, null, props, null ) );
+    }
+
     private void setRelationalUpdateValues( List<ParsedPropertyReplacement> replacementProps,
                                             FeatureTypeMapping ftMapping, PreparedStatement stmt, IdFilter filter,
-                                            FIDMapping fidMapping )
+                                            FIDMapping fidMapping, Geometry bboxExtension, GeometryMapping gmlBoundedByMapping  )
                             throws SQLException {
         int i = 1;
 
@@ -918,6 +956,12 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
             }
         }
 
+        if ( gmlBoundedByMapping != null ) {
+            @SuppressWarnings("unchecked")
+            ParticleConverter<TypedObjectNode> converter = (ParticleConverter<TypedObjectNode>) fs.getConverter( gmlBoundedByMapping );
+            converter.setParticle( stmt, bboxExtension, i++ );
+        }
+
         for ( String id : filter.getMatchingIds() ) {
             IdAnalysis analysis = schema.analyzeId( id );
             int j = i;
@@ -932,7 +976,7 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
 
     private String createRelationalUpdateStatement( FeatureTypeMapping ftMapping, FIDMapping fidMapping,
                                                     List<ParsedPropertyReplacement> replacementProps,
-                                                    List<ResourceId> list )
+                                                    List<ResourceId> list, GeometryMapping gmlBoundedByMapping  )
                             throws FilterEvaluationException, FeatureStoreException, SQLException {
         StringBuffer sql = new StringBuffer( "UPDATE " );
         sql.append( ftMapping.getFtTable() );
@@ -987,6 +1031,17 @@ public class SQLFeatureStoreTransaction implements FeatureStoreTransaction {
             } else {
                 LOG.warn( "No mapping for update property '" + propName + "'. Omitting." );
             }
+        }
+
+        if ( gmlBoundedByMapping != null ) {
+            final String column = ( (DBField) gmlBoundedByMapping.getMapping() ).getColumn();
+            if ( !first ) {
+                sql.append( "," );
+            } else {
+                first = false;
+            }
+            sql.append( column );
+            sql.append( "=" + fs.getDialect().getCalculateEnvelopeExpression( column, "?" ) );
         }
 
         // only property changes in multi properties?

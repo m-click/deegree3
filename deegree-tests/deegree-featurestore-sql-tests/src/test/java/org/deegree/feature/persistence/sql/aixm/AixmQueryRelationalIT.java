@@ -8,6 +8,12 @@ import org.deegree.feature.FeatureCollection;
 import org.deegree.feature.persistence.query.Query;
 import org.deegree.feature.persistence.sql.SQLFeatureStore;
 import org.deegree.feature.persistence.sql.SQLFeatureStoreTestCase;
+import org.deegree.filter.Filter;
+import org.deegree.filter.Operator;
+import org.deegree.filter.OperatorFilter;
+import org.deegree.filter.spatial.BBOX;
+import org.deegree.geometry.Envelope;
+import org.deegree.geometry.GeometryFactory;
 
 /**
  * Tests the query behaviour of the {@link SQLFeatureStore} for an AIXM configuration (relational mode).
@@ -37,6 +43,7 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 1, fc.size() );
         assertGmlEquals( fc.iterator().next(), "aixm/expected/crane_5.xml" );
+
     }
 
     public void testQueryByGmlIdentifier()
@@ -57,16 +64,28 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
 
     public void testQueryFilterOnHybridProperty()
                             throws Exception {
-        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition.xml", VERTICAL_STRUCTURE_NAME );
+        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition.xml",
+                                              VERTICAL_STRUCTURE_NAME );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 8, fc.size() );
     }
 
     public void testQueryFilterOnHybridPropertyNoMatch()
                             throws Exception {
-        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition_no_match.xml", VERTICAL_STRUCTURE_NAME );
+        final Query query = buildFilterQuery( "aixm/filter/vertical_structure_timeslice_beginposition_no_match.xml",
+                                              VERTICAL_STRUCTURE_NAME );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 0, fc.size() );
+    }
+
+    public void testQueryByBbox()
+                            throws Exception {
+        final Envelope env = new GeometryFactory().createEnvelope( 52.453333, -5.981667, 53.893333, -5.755, null );
+        final Operator op = new BBOX( env );
+        final Filter filter = new OperatorFilter( op );
+        final Query query = new Query( AIRSPACE_NAME, filter, -1, -1, -1.0 );
+        final FeatureCollection fc = fs.query( query ).toCollection();
+        assertEquals( 1, fc.size() );
     }
 
 }

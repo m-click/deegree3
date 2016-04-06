@@ -4,6 +4,7 @@ CREATE TABLE airport_heliport (
   aixm_feature_metadata bytea,
   CONSTRAINT airport_heliport_pkey PRIMARY KEY (attr_gml_id)
 );
+SELECT ADDGEOMETRYCOLUMN('', 'airport_heliport', 'gml_bounded_by', 0, 'GEOMETRY', 2);
 CREATE TABLE airport_heliport_timeslice (
   id serial NOT NULL,
   fk_airport text REFERENCES airport_heliport ON DELETE CASCADE,
@@ -16,6 +17,7 @@ CREATE TABLE airspace (
   aixm_feature_metadata bytea,
   CONSTRAINT airspace_pkey PRIMARY KEY (attr_gml_id)
 );
+SELECT ADDGEOMETRYCOLUMN('', 'airspace', 'gml_bounded_by', 0, 'GEOMETRY', 2);
 CREATE TABLE airspace_timeslice (
   id serial NOT NULL,
   fk_airspace text REFERENCES airspace ON DELETE CASCADE,
@@ -28,6 +30,7 @@ CREATE TABLE vertical_structure (
   aixm_feature_metadata bytea,
   CONSTRAINT vertical_structure_pkey PRIMARY KEY (attr_gml_id)
 );
+SELECT ADDGEOMETRYCOLUMN('', 'vertical_structure', 'gml_bounded_by', 0, 'GEOMETRY', 2);
 CREATE TABLE vertical_structure_timeslice (
   id serial NOT NULL,
   fk_vertical_structure text REFERENCES vertical_structure ON DELETE CASCADE,

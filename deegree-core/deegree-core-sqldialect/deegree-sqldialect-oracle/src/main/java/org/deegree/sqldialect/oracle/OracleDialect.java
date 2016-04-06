@@ -323,4 +323,9 @@ public class OracleDialect extends AbstractSQLDialect implements SQLDialect {
         return "blob";
     }
 
+    @Override
+    public String getCalculateEnvelopeExpression( String geometry1, String geometry2 ) {
+        throw new UnsupportedOperationException();
+    }
+
 }

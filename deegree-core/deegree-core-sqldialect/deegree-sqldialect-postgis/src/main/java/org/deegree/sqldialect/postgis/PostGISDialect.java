@@ -405,4 +405,9 @@ public class PostGISDialect extends AbstractSQLDialect implements SQLDialect {
         return "bytea";
     }
 
+    @Override
+    public String getCalculateEnvelopeExpression( final String geometry1, final String geometry2 ) {
+        return "st_envelope(st_collect(" + geometry1 + "," + geometry2 + "))";
+    }
+
 }

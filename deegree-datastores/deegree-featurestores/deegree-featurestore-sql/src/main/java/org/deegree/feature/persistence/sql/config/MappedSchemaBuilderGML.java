@@ -411,7 +411,7 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
     }
 
     private GeometryMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
-                                          GeometryParticleJAXB config, final boolean skipOnReconstruct ) {
+                                          GeometryParticleJAXB config, boolean skipOnReconstruct ) {
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         MappingExpression me = parseMappingExpression( config.getMapping() );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
@@ -423,6 +423,10 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
         }
         boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
         List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
+        if ( ptName.getNamespaceURI().equals( gmlSchema.getGMLSchema().getVersion().getNamespace() )
+             && ptName.getLocalPart().equals( "boundedBy" ) ) {
+            skipOnReconstruct = true;
+        }
         return new GeometryMapping( path, escalateVoid, me, type, geometryParams, joinedTable,
                                     config.getCustomConverter(), skipOnReconstruct );
     }

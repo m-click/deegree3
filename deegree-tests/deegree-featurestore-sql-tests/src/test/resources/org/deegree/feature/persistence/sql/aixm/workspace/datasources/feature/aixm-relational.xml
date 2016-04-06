@@ -4,6 +4,7 @@
   xmlns:gml="http://www.opengis.net/gml/3.2">
 
   <JDBCConnId>deegree-test</JDBCConnId>
+  <DisablePostFiltering />
 
   <StorageCRS srid="0" dim="2D">urn:ogc:def:crs:EPSG::4326</StorageCRS>
 
@@ -23,6 +24,8 @@
       <Primitive path="text()" mapping="gml_identifier" />
       <Primitive path="@codeSpace" mapping="'urn:uuid:'" />
     </Complex>
+
+    <Geometry path="gml:boundedBy" mapping="gml_bounded_by" />
 
     <Complex path="aixm:featureMetadata">
       <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata"/>
@@ -46,6 +49,8 @@
       <Primitive path="@codeSpace" mapping="'urn:uuid:'" />
     </Complex>
 
+    <Geometry path="gml:boundedBy" mapping="gml_bounded_by" />
+
     <Complex path="aixm:featureMetadata">
       <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata"/>
     </Complex>
@@ -66,6 +71,8 @@
       <Primitive path="text()" mapping="gml_identifier" />
       <Primitive path="@codeSpace" mapping="'urn:uuid:'" />
     </Complex>
+
+    <Geometry path="gml:boundedBy" mapping="gml_bounded_by" />
 
     <Complex path="aixm:featureMetadata">
       <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata"/>

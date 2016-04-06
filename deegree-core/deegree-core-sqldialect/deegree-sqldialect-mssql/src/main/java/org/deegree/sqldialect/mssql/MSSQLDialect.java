@@ -277,4 +277,9 @@ public class MSSQLDialect extends AbstractSQLDialect implements SQLDialect {
         return "varbinary(max)";
     }
 
+    @Override
+    public String getCalculateEnvelopeExpression( String geometry1, String geometry2 ) {
+        throw new UnsupportedOperationException();
+    }
+
 }
