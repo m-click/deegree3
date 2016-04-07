@@ -60,4 +60,13 @@ public class BlobColumnDefinition extends ColumnDefinition {
         return this;
     }
 
+    @Override
+    public void merge( final ColumnDefinition other ) {
+        if ( !( other instanceof BlobColumnDefinition ) ) {
+            throw new IllegalArgumentException();
+        }
+        final BlobColumnDefinition that = (BlobColumnDefinition) other;
+        this.isNotNull = this.isNotNull || that.isNotNull;
+    }
+
 }

@@ -36,7 +36,7 @@
 package org.deegree.feature.persistence.sql;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +44,7 @@ import javax.xml.namespace.QName;
 
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
+import org.deegree.commons.tom.gml.property.PropertyType;
 import org.deegree.commons.utils.Pair;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
@@ -72,7 +73,7 @@ public class FeatureTypeMapping {
 
     private final List<Mapping> particles = new ArrayList<Mapping>();
 
-    private final SQLIdentifier typeColumn;
+    private SQLIdentifier typeColumn;
 
     /**
      * Creates a new {@link FeatureTypeMapping} instance.
@@ -93,7 +94,7 @@ public class FeatureTypeMapping {
         this.ftName = ftName;
         this.table = table;
         this.fidMapping = fidMapping;
-        this.propToMapping = new HashMap<QName, Mapping>();
+        this.propToMapping = new LinkedHashMap<QName, Mapping>();
         // TODO cope with non-QName XPaths as well
         for ( Mapping mapping : particleMappings ) {
             if ( mapping != null && mapping.getPath().getAsQName() != null ) {
@@ -222,4 +223,65 @@ public class FeatureTypeMapping {
         }
         return null;
     }
+
+    /**
+     * Merges the given {@link FeatureTypeMapping} into this one.
+     * 
+     * @param other
+     *            feature type mapping, must target the same feature type
+     * @param ft
+     *            feature type, must not be <code>null</code>
+     */
+    public void merge( final FeatureTypeMapping other, final FeatureType ft ) {
+        if ( !ftName.equals( other.ftName ) ) {
+            final String msg = "Cannot merge feature type mappings, different feature types.";
+            throw new IllegalArgumentException( msg );
+        }
+        if ( !equalsNullSafe( table, other.table ) ) {
+            final String msg = "Cannot merge feature type mappings for " + ftName + " and " + other.ftName
+                               + ", different tables: " + table + " vs. " + other.table;
+            throw new IllegalArgumentException( msg );
+        }
+        // TODO FIDMapping
+        if ( other.typeColumn != null ) {
+            typeColumn = other.typeColumn;
+        }
+        final Map<QName, Mapping> mergedProperties = mergeProperties( other, ft );
+        propToMapping.clear();
+        propToMapping.putAll( mergedProperties );
+        particles.clear();
+        particles.addAll( propToMapping.values() );
+    }
+
+    private Map<QName, Mapping> mergeProperties( final FeatureTypeMapping other, final FeatureType ft ) {
+        final Map<QName, Mapping> propToMapping = new LinkedHashMap<QName, Mapping>();
+        for ( final PropertyType pt : ft.getPropertyDeclarations() ) {
+            final Mapping mapping1 = this.propToMapping.get( pt.getName() );
+            final Mapping mapping2 = other.propToMapping.get( pt.getName() );
+            if ( mapping1 != null && mapping2 != null ) {
+                final String msg = "Cannot merge feature type mappings for " + ftName + " and " + other.ftName
+                                   + ", property is re-mapped: " + pt.getName();
+                throw new IllegalArgumentException( msg );
+            }
+            if ( mapping1 != null ) {
+                propToMapping.put( pt.getName(), mapping1 );
+            }
+            if ( mapping2 != null ) {
+                propToMapping.put( pt.getName(), mapping2 );
+            }
+        }
+        return propToMapping;
+    }
+
+    private boolean equalsNullSafe( final Object o1, final Object o2 ) {
+        if ( o1 == null && o2 == null ) {
+            return true;
+        } else if ( o1 == null && o2 != null ) {
+            return false;
+        } else if ( o2 == null && o1 != null ) {
+            return false;
+        }
+        return o1.equals( o2 );
+    }
+
 }

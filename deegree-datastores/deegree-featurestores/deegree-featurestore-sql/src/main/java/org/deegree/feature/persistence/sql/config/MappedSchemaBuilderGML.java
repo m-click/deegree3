@@ -105,6 +105,7 @@ import org.deegree.feature.persistence.sql.rules.GeometryMapping;
 import org.deegree.feature.persistence.sql.rules.Mapping;
 import org.deegree.feature.persistence.sql.rules.PrimitiveMapping;
 import org.deegree.feature.types.AppSchema;
+import org.deegree.feature.types.FeatureCollectionType;
 import org.deegree.feature.types.FeatureType;
 import org.deegree.feature.types.property.FeaturePropertyType;
 import org.deegree.feature.types.property.GeometryPropertyType;
@@ -174,12 +175,16 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
             bboxMapping = pair.second;
         }
         if ( ftMappingConfs != null ) {
-            for ( FeatureTypeMappingJAXB ftMappingConf : ftMappingConfs ) {
+            for ( final FeatureTypeMappingJAXB ftMappingConf : ftMappingConfs ) {
                 final Collection<FeatureTypeMapping> ftMappings = buildFtMappings( ftMappingConf );
                 for ( final FeatureTypeMapping ftMapping : ftMappings ) {
-                    ftNameToMapping.put( ftMapping.getFeatureType(), ftMapping );
+                    final FeatureTypeMapping existingMapping = ftNameToMapping.get( ftMapping.getFeatureType() );
+                    if ( existingMapping != null ) {
+                        existingMapping.merge( ftMapping, gmlSchema.getFeatureType( ftMapping.getFeatureType() ) );
+                    } else {
+                        ftNameToMapping.put( ftMapping.getFeatureType(), ftMapping );
+                    }
                 }
-
             }
         }
         this.deleteCascadingByDB = deleteCascadingByDB;
@@ -325,12 +330,14 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
 
     private Collection<FeatureTypeMapping> buildFtMappings( FeatureTypeMappingJAXB ftMappingConf )
                             throws FeatureStoreException {
+
         final Collection<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
         SQLIdentifier typeColumn = null;
         if ( ftMappingConf.getTypeColumn() != null ) {
             typeColumn = new SQLIdentifier( ftMappingConf.getTypeColumn() );
         }
-        for ( final QName ftName : ftMappingConf.getName() ) {
+        final Collection<QName> ftNamesIncludingSubstitutions = getFeatureTypesIncludingSubstitions( ftMappingConf.getName() );
+        for ( final QName ftName : ftNamesIncludingSubstitutions ) {
             TableName ftTable = new TableName( ftMappingConf.getTable() );
             FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );
             List<Mapping> particleMappings = new ArrayList<Mapping>();
@@ -515,6 +522,20 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
             }
         }
         return particles;
+    }
+
+    private Collection<QName> getFeatureTypesIncludingSubstitions( final List<QName> ftNames ) {
+        final Set<QName> ftsIncludingSubstitutions = new HashSet<QName>();
+        for ( final QName ftName : ftNames ) {
+            ftsIncludingSubstitutions.add( ftName );
+            final FeatureType[] types = gmlSchema.getSubtypes( gmlSchema.getFeatureType( ftName ) );
+            for ( final FeatureType type : types ) {
+                if ( !( type instanceof FeatureCollectionType ) ) {
+                    ftsIncludingSubstitutions.add( type.getName() );
+                }
+            }
+        }
+        return ftsIncludingSubstitutions;
     }
 
 }
