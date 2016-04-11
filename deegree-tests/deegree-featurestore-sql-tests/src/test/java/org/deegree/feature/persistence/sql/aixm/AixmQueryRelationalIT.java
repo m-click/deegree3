@@ -45,8 +45,6 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         final Query query = buildGmlIdentifierQuery( "8c755520-b42b-11e3-a5e2-0800500c9a66", VERTICAL_STRUCTURE_NAME );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 1, fc.size() );
-        assertGmlEquals( fc.iterator().next(), "aixm/expected/crane_5.xml" );
-
     }
 
     public void testQueryByGmlIdentifier()
@@ -54,7 +52,6 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         final Query query = buildGmlIdentifierQuery( "010d8451-d751-4abb-9c71-f48ad024045b", AIRSPACE_NAME );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 1, fc.size() );
-        assertGmlEquals( fc.iterator().next(), "aixm/expected/airspace_eamm2.xml" );
     }
 
     public void testQueryByGmlIdentifierUnspecifiedFeatureType()
@@ -62,7 +59,6 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         final Query query = buildGmlIdentifierQuery( "010d8451-d751-4abb-9c71-f48ad024045b", null );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 1, fc.size() );
-        assertGmlEquals( fc.iterator().next(), "aixm/expected/airspace_eamm2.xml" );
     }
 
     public void testQueryByGmlId()

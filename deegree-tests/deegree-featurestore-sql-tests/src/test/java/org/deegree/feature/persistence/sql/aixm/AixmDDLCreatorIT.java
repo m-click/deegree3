@@ -41,9 +41,9 @@ public class AixmDDLCreatorIT {
     private DDLCreator ddlCreator;
 
     @Test
-    public void getDDLForRelationalConfiguration()
+    public void getDDLForHybridConfiguration()
                             throws IOException, FeatureStoreException, JAXBException {
-        ddlCreator = getDdlCreator( "workspace/datasources/feature/aixm-relational.xml" );
+        ddlCreator = getDdlCreator( "workspace/datasources/feature/aixm-hybrid.xml" );
         final String[] actualStmts = ddlCreator.getDDL();
         final List<String> expectedStmts = readLines( AixmDDLCreatorIT.class.getResourceAsStream( "expected/ddl/create-relational.sql" ),
                                                       "UTF-8" );

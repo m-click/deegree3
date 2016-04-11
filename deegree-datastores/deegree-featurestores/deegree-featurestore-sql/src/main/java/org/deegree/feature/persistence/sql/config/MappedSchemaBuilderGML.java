@@ -475,6 +475,7 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
                                           ComplexParticleJAXB config, final boolean skipOnReconstruct ) {
         ValueReference path = new ValueReference( config.getPath(), nsBindings );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
+        path = disambiguatePath( path, elDecl.first );
         boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
         List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
         if ( joinedTable != null ) {
@@ -489,8 +490,9 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
 
     private BlobParticleMapping buildMapping( TableName currentTable, Pair<XSElementDeclaration, Boolean> elDecl,
                                               final BlobParticleJAXB config, final boolean skipOnReconstruct ) {
-        final ValueReference path = new ValueReference( config.getPath(), nsBindings );
+        ValueReference path = new ValueReference( config.getPath(), nsBindings );
         elDecl = schemaWalker.getTargetElement( elDecl, path );
+        path = disambiguatePath( path, elDecl.first );
         final MappingExpression blobMapping = parseMappingExpression( config.getMapping() );
         final boolean escalateVoid = determineParticleVoidability( elDecl.second, config.getNullEscalation() );
         final List<TableJoin> joinedTable = buildJoinTable( currentTable, config.getJoin() );
@@ -541,6 +543,17 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
             }
         }
         return ftsIncludingSubstitutions;
+    }
+
+    private ValueReference disambiguatePath( final ValueReference path, final XSElementDeclaration elDecl ) {
+        if ( !path.getAsText().equals( "*" ) ) {
+            return path;
+        }
+        final String namespace = elDecl.getNamespace();
+        final String localPart = elDecl.getName();
+        final String prefix = nsBindings.getPrefix( namespace );
+        final QName qName = new QName( namespace, localPart, prefix );
+        return new ValueReference( qName );
     }
 
 }

@@ -36,8 +36,13 @@
       <UUIDGenerator />
     </FIDMapping>
 
+    <Complex path="aixm:featureMetadata">
+      <Blob path="gmd:MD_Metadata" mapping="aixm_feature_metadata" />
+    </Complex>
+
     <Complex path="aixm:timeSlice">
       <Join fromColumns="uuid" table="aixm_timeslice" toColumns="feature_uuid" orderColumns="id"/>
+      <Blob path="*" mapping="binary_object"/>
       <Complex path="*">
         <Primitive path="@gml:id" mapping="attr_gml_id" />
         <Complex path="gml:validTime">

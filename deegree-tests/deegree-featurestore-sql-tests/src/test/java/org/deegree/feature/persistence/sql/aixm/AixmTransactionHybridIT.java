@@ -46,7 +46,7 @@ public class AixmTransactionHybridIT extends SQLFeatureStoreTestCase {
 
     private static final String DATASET_LOCATION = "aixm/data/Donlon.xml";
 
-    private static final String FEATURE_STORE_ID = "aixm-relational";
+    private static final String FEATURE_STORE_ID = "aixm-hybrid";
 
     private static final String WORKSPACE_LOCATION = "aixm/workspace";
 
