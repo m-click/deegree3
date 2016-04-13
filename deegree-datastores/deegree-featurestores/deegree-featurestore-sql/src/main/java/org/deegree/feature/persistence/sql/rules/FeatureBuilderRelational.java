@@ -143,6 +143,8 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final LinkedHashMap<String, Integer> qualifiedSqlExprToRsIdx = new LinkedHashMap<String, Integer>();
 
+    private final SelectManager selectManager;
+
     private final boolean nullEscalation;
 
     /**
@@ -175,10 +177,22 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         // } else {
         // this.gmlVersion = GMLVersion.GML_32;
         // }
+        this.selectManager = new SelectManager( initialAliasManager );
     }
 
     @Override
     public List<String> getInitialSelectList() {
+        selectManager.add( ftMapping );
+        for ( final Mapping mapping : ftMapping.getMappings() ) {
+            addMapping( selectManager, mapping, null );
+        }
+        LOG.debug( "Initial select columns: " + selectManager.selectTerms );
+        qualifiedSqlExprToRsIdx.clear();
+        qualifiedSqlExprToRsIdx.putAll( selectManager.getSelectTermToResultSetIdxMap() );
+        return new ArrayList<String>( qualifiedSqlExprToRsIdx.keySet() );
+    }
+
+    public List<String> getInitialSelectListOld() {
         for ( Pair<SQLIdentifier, BaseType> fidColumn : ftMapping.getFidMapping().getColumns() ) {
             addColumn( qualifiedSqlExprToRsIdx, qualifyRootColumn( fidColumn.first.getName() ) );
         }
@@ -190,6 +204,19 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         }
         LOG.debug( "Initial select columns: " + qualifiedSqlExprToRsIdx );
         return new ArrayList<String>( qualifiedSqlExprToRsIdx.keySet() );
+    }
+
+    private void addMapping( final SelectManager selectManager, final Mapping mapping, final Mapping parent ) {
+        final ParticleConverter<?> particleConverter = fs.getConverter( mapping );
+        if ( !selectManager.add( mapping, particleConverter, parent ) ) {
+            return;
+        }
+        if ( mapping instanceof CompoundMapping ) {
+            final CompoundMapping cm = (CompoundMapping) mapping;
+            for ( final Mapping childMapping : cm.getParticles() ) {
+                addMapping( selectManager, childMapping, mapping );
+            }
+        }
     }
 
     private void addColumn( LinkedHashMap<String, Integer> colToRsIdx, String column ) {

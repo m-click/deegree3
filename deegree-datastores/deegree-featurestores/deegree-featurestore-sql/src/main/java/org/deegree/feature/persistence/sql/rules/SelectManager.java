@@ -3,6 +3,7 @@ package org.deegree.feature.persistence.sql.rules;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -62,15 +63,15 @@ class SelectManager {
         }
     }
 
-    void add( final Mapping mapping, final ParticleConverter<?> particleConverter, final Mapping parent ) {
+    boolean add( final Mapping mapping, final ParticleConverter<?> particleConverter, final Mapping parent ) {
         if ( mapping.isSkipOnReconstruct() ) {
-            return;
+            return false;
         }
         String currentTableAlias = mappingToTableAlias.get( parent );
         if ( parent == null ) {
             currentTableAlias = aliasManager.getRootTableAlias();
         }
-        add( mapping, particleConverter, currentTableAlias );
+        return add( mapping, particleConverter, currentTableAlias );
     }
 
     final String getSelectTerms() {
@@ -101,6 +102,15 @@ class SelectManager {
         return -1;
     }
 
+    LinkedHashMap<String, Integer> getSelectTermToResultSetIdxMap() {
+        final LinkedHashMap<String, Integer> selectTermToResultSet = new LinkedHashMap<String, Integer>();
+        int idx = 1;
+        for ( final String selectTerm : selectTerms ) {
+            selectTermToResultSet.put( selectTerm, idx++ );
+        }
+        return selectTermToResultSet;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sql = new StringBuilder( "SELECT " );
@@ -120,9 +130,11 @@ class SelectManager {
         return sql.toString();
     }
 
-    private void add( final Mapping mapping, final ParticleConverter<?> particleConverter, String currentTableAlias ) {
-        if ( mapping.getJoinedTable() != null ) {
-            currentTableAlias = followJoins( mapping.getJoinedTable(), currentTableAlias );
+    private boolean add( final Mapping mapping, final ParticleConverter<?> particleConverter, String currentTableAlias ) {
+        if ( mapping.getJoinedTable() != null && !( mapping instanceof FeatureMapping ) ) {
+            addFromColumns( mapping.getJoinedTable(), currentTableAlias );
+            mappingToTableAlias.put( mapping, currentTableAlias );
+            return false;
         }
         mappingToTableAlias.put( mapping, currentTableAlias );
         if ( particleConverter != null ) {
@@ -131,6 +143,7 @@ class SelectManager {
                 selectTerms.add( selectSnippet );
             }
         }
+        return true;
     }
 
     private int getResultSetIndex( final String sqlTerm ) {
@@ -142,6 +155,14 @@ class SelectManager {
             i++;
         }
         return -1;
+    }
+
+    private void addFromColumns( final List<TableJoin> joins, final String currentTableAlias ) {
+        for ( final TableJoin join : joins ) {
+            for ( final SQLIdentifier fromColumn : join.getFromColumns() ) {
+                selectTerms.add( currentTableAlias + "." + fromColumn.getName() );
+            }
+        }
     }
 
     private String followJoins( final List<TableJoin> joins, String currentTableAlias ) {
