@@ -71,4 +71,12 @@ public interface FeatureBuilder {
      */
     public Feature buildFeature( ResultSet rs, FeatureType ft )
                             throws SQLException;
+
+    /**
+     * Returns whether the last call to {@link #buildFeature(ResultSet, FeatureType)} left unconsumed result set rows.
+     *
+     * @return <code>true</code>, if result set has more rows, <code>false</code> otherwise
+     */
+    public boolean hasMoreRows();
+
 }

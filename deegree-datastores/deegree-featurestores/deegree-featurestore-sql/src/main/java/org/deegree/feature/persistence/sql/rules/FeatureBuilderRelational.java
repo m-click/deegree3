@@ -118,6 +118,8 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final boolean nullEscalation;
 
+    private boolean hasMoreRows;
+
     /**
      * Creates a new {@link FeatureBuilderRelational} instance.
      * 
@@ -173,11 +175,17 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             } else {
                 LOG.debug( "Cache hit." );
             }
+            hasMoreRows = rs.next();
         } catch ( Throwable t ) {
+            hasMoreRows = false;
             LOG.error( t.getMessage(), t );
             throw new SQLException( t.getMessage(), t );
         }
         return feature;
+    }
+
+    public boolean hasMoreRows() {
+        return hasMoreRows;
     }
 
     private String buildGmlId( final ResultSet rs )

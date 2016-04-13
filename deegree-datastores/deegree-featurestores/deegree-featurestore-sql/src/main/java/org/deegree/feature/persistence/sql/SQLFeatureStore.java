@@ -1178,8 +1178,9 @@ public class SQLFeatureStore implements FeatureStore {
         ResultSet rs = null;
         try {
             long begin = System.currentTimeMillis();
-            String tableAlias = "X1";
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, tableAlias, nullEscalation );
+            final TableAliasManager aliasManager = new TableAliasManager();
+            String tableAlias = aliasManager.getRootTableAlias();
+            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager, nullEscalation );
             List<String> columns = builder.getInitialSelectList();
             StringBuilder sql = new StringBuilder( "SELECT " );
             sql.append( columns.get( 0 ) );
@@ -1700,6 +1701,10 @@ public class SQLFeatureStore implements FeatureStore {
 
         private final boolean needsDisambiguation;
 
+        private boolean currentRowRead = true;
+        
+        private boolean builderInvoked = false;
+
         public FeatureResultSetIterator( FeatureBuilder builder, ResultSet rs, Connection conn, Statement stmt,
                                          FeatureType ft, boolean needsDisambiguation ) {
             super( rs, conn, stmt );
@@ -1719,6 +1724,7 @@ public class SQLFeatureStore implements FeatureStore {
         @Override
         protected Feature createElement( ResultSet rs )
                                 throws SQLException {
+            builderInvoked = true;
             final Feature feature = builder.buildFeature( rs, ft );
             if ( needsDisambiguation ) {
                 return buildFullFeature( feature );
@@ -1734,6 +1740,29 @@ public class SQLFeatureStore implements FeatureStore {
                 throw new SQLException( e.getMessage(), e );
             }
         }
+
+        @Override
+        public boolean hasNext() {
+            if ( builderInvoked ) {
+                return builder.hasMoreRows();
+            }
+            if ( !currentRowRead ) {
+                return true;
+            }
+            try {
+                if ( rs.next() ) {
+                    currentRowRead = false;
+                    return true;
+                }
+            } catch ( SQLException e ) {
+                // try to close everything
+                close();
+                // wrap as unchecked exception
+                throw new RuntimeException( e.getMessage(), e );
+            }
+            return false;
+        }
+
     }
 
     @Override

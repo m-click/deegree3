@@ -68,6 +68,8 @@ public class FeatureBuilderBlob implements FeatureBuilder {
 
     private final ICRS crs;
 
+    private boolean hasMoreRows;
+
     /**
      * Creates a new {@link FeatureBuilderBlob} instance.
      * 
@@ -110,10 +112,18 @@ public class FeatureBuilderBlob implements FeatureBuilder {
             } else {
                 LOG.debug( "Cache hit." );
             }
+            hasMoreRows = rs.next();
         } catch ( Exception e ) {
+            hasMoreRows = false;
             String msg = "Cannot recreate feature from result set: " + e.getMessage();
             throw new SQLException( msg, e );
         }
         return feature;
     }
+
+    @Override
+    public boolean hasMoreRows() {
+        return hasMoreRows;
+    }
+
 }
