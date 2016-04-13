@@ -289,27 +289,17 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     }
 
     @Override
-    public Feature buildFeature( final ResultSet rs, FeatureType ft )
+    public Feature buildFeature( final ResultSet rs, final FeatureType queryFt )
                             throws SQLException {
 
         Feature feature = null;
         try {
-            String gmlId = ftMapping.getFidMapping().getPrefix();
-            List<Pair<SQLIdentifier, BaseType>> fidColumns = ftMapping.getFidMapping().getColumns();
-            gmlId += rs.getObject( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( fidColumns.get( 0 ).first.getName() ) ) );
-            for ( int i = 1; i < fidColumns.size(); i++ ) {
-                gmlId += ftMapping.getFidMapping().getDelimiter()
-                         + rs.getObject( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( fidColumns.get( i ).first.getName() ) ) );
-            }
-            if ( ftMapping.getTypeColumn() != null ) {
-                final String ftName = rs.getString( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( ftMapping.getTypeColumn().getName() ) ) );
-                LOG.debug ("Ambigous feature type mapping: Using feature type from type column: " + ftName);
-                ft = fs.getSchema().getFeatureType( QName.valueOf( ftName ) );
-            }
+            final String gmlId = buildGmlId( rs );
             if ( fs.getCache() != null ) {
                 feature = (Feature) fs.getCache().get( gmlId );
             }
             if ( feature == null ) {
+                final FeatureType ft = disambiguateFeatureType( rs, queryFt );
                 LOG.debug( "Recreating feature '" + gmlId + "' from db (relational mode)." );
                 List<Property> props = new ArrayList<Property>();
                 for ( Mapping mapping : ftMapping.getMappings() ) {
@@ -340,6 +330,28 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             throw new SQLException( t.getMessage(), t );
         }
         return feature;
+    }
+
+    private String buildGmlId( final ResultSet rs )
+                            throws SQLException {
+        String gmlId = ftMapping.getFidMapping().getPrefix();
+        List<Pair<SQLIdentifier, BaseType>> fidColumns = ftMapping.getFidMapping().getColumns();
+        int resultSetIdx = selectManager.getResultSetIndex( ftMapping.getFidMapping() );
+        gmlId += rs.getObject( resultSetIdx++ );
+        for ( int i = 1; i < fidColumns.size(); i++ ) {
+            gmlId += ftMapping.getFidMapping().getDelimiter() + rs.getObject( resultSetIdx++ );
+        }
+        return gmlId;
+    }
+
+    private FeatureType disambiguateFeatureType( final ResultSet rs, final FeatureType ft )
+                            throws SQLException {
+        if ( ftMapping.getTypeColumn() != null ) {
+            final String ftName = rs.getString( selectManager.getResultSetIndex( qualifyRootColumn( ftMapping.getTypeColumn().getName() ) ) );
+            LOG.debug( "Ambigous feature type mapping: Using feature type from type column: " + ftName );
+            return fs.getSchema().getFeatureType( QName.valueOf( ftName ) );
+        }
+        return ft;
     }
 
     private String toIdPrefix( ValueReference propName ) {

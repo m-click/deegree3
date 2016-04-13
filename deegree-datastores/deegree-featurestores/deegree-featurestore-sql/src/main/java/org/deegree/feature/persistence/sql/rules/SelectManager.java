@@ -102,6 +102,17 @@ class SelectManager {
         return -1;
     }
 
+    int getResultSetIndex( final String sqlTerm ) {
+        int i = 1;
+        for ( final String selectColumn : selectTerms ) {
+            if ( selectColumn.equals( sqlTerm ) ) {
+                return i;
+            }
+            i++;
+        }
+        return -1;
+    }
+
     LinkedHashMap<String, Integer> getSelectTermToResultSetIdxMap() {
         final LinkedHashMap<String, Integer> selectTermToResultSet = new LinkedHashMap<String, Integer>();
         int idx = 1;
@@ -144,17 +155,6 @@ class SelectManager {
             }
         }
         return true;
-    }
-
-    private int getResultSetIndex( final String sqlTerm ) {
-        int i = 1;
-        for ( final String selectColumn : selectTerms ) {
-            if ( selectColumn.equals( sqlTerm ) ) {
-                return i;
-            }
-            i++;
-        }
-        return -1;
     }
 
     private void addFromColumns( final List<TableJoin> joins, final String currentTableAlias ) {
