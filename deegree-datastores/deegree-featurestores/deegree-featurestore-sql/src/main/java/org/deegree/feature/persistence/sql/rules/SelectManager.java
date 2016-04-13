@@ -15,6 +15,7 @@ import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.sql.ParticleConverter;
 import org.deegree.commons.utils.Pair;
 import org.deegree.feature.persistence.sql.FeatureTypeMapping;
+import org.deegree.feature.persistence.sql.SQLFeatureStore;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
 import org.deegree.feature.persistence.sql.id.FIDMapping;
 import org.deegree.sqldialect.filter.TableAliasManager;
@@ -45,13 +46,17 @@ class SelectManager {
 
     private String rootTable;
 
-    SelectManager( final TableAliasManager aliasManager ) {
+    /**
+     * Creates a new {@link SelectManager} instance for an initial SELECT.
+     *
+     * @param ftMapping
+     * @param aliasManager
+     * @param fs
+     */
+    SelectManager( final FeatureTypeMapping ftMapping, final TableAliasManager aliasManager, final SQLFeatureStore fs ) {
         this.aliasManager = aliasManager;
-    }
-
-    void add( final FeatureTypeMapping ftMapping ) {
-        rootTable = ftMapping.getFtTable().toString();
         final String currentTableAlias = aliasManager.getRootTableAlias();
+        rootTable = ftMapping.getFtTable().toString();
         final FIDMapping fidMapping = ftMapping.getFidMapping();
         for ( final Pair<SQLIdentifier, BaseType> column : fidMapping.getColumns() ) {
             final String sqlTerm = currentTableAlias + "." + column.getFirst().getName();
@@ -61,17 +66,36 @@ class SelectManager {
         if ( ftMapping.getTypeColumn() != null ) {
             selectTerms.add( currentTableAlias + "." + ftMapping.getTypeColumn().getName() );
         }
+        for ( final Mapping mapping : ftMapping.getMappings() ) {
+            add( mapping, currentTableAlias, fs );
+        }
     }
 
-    boolean add( final Mapping mapping, final ParticleConverter<?> particleConverter, final Mapping parent ) {
-        if ( mapping.isSkipOnReconstruct() ) {
-            return false;
+    /**
+     * Creates a new {@link SelectManager} instance for a subsequent SELECT.
+     *
+     * @param ftMapping
+     * @param aliasManager
+     * @param fs
+     */
+    SelectManager( final Mapping mapping, final TableJoin join, final SQLFeatureStore fs ) {
+        this.aliasManager = new TableAliasManager();
+        final String currentTableAlias = aliasManager.getRootTableAlias();
+        rootTable = join.getToTable().getName();
+        mappingToTableAlias.put( mapping, currentTableAlias );
+        addToColumns( join, currentTableAlias );
+        final ParticleConverter<?> particleConverter = fs.getConverter( mapping );
+        if ( particleConverter != null ) {
+            final String selectSnippet = particleConverter.getSelectSnippet( currentTableAlias );
+            if ( selectSnippet != null ) {
+                selectTerms.add( selectSnippet );
+            }
+        } else if ( mapping instanceof CompoundMapping ) {
+            final CompoundMapping cm = (CompoundMapping) mapping;
+            for ( final Mapping childMapping : cm.getParticles() ) {
+                add( childMapping, currentTableAlias, fs );
+            }
         }
-        String currentTableAlias = mappingToTableAlias.get( parent );
-        if ( parent == null ) {
-            currentTableAlias = aliasManager.getRootTableAlias();
-        }
-        return add( mapping, particleConverter, currentTableAlias );
     }
 
     final String getSelectTerms() {
@@ -141,20 +165,25 @@ class SelectManager {
         return sql.toString();
     }
 
-    private boolean add( final Mapping mapping, final ParticleConverter<?> particleConverter, String currentTableAlias ) {
+    private void add( final Mapping mapping, final String currentTableAlias, final SQLFeatureStore fs ) {
         if ( mapping.getJoinedTable() != null && !( mapping instanceof FeatureMapping ) ) {
             addFromColumns( mapping.getJoinedTable(), currentTableAlias );
             mappingToTableAlias.put( mapping, currentTableAlias );
-            return false;
+            return;
         }
         mappingToTableAlias.put( mapping, currentTableAlias );
+        final ParticleConverter<?> particleConverter = fs.getConverter( mapping );
         if ( particleConverter != null ) {
             final String selectSnippet = particleConverter.getSelectSnippet( currentTableAlias );
             if ( selectSnippet != null ) {
                 selectTerms.add( selectSnippet );
             }
+        } else if ( mapping instanceof CompoundMapping ) {
+            final CompoundMapping cm = (CompoundMapping) mapping;
+            for ( final Mapping childMapping : cm.getParticles() ) {
+                add( childMapping, currentTableAlias, fs );
+            }
         }
-        return true;
     }
 
     private void addFromColumns( final List<TableJoin> joins, final String currentTableAlias ) {
@@ -162,6 +191,12 @@ class SelectManager {
             for ( final SQLIdentifier fromColumn : join.getFromColumns() ) {
                 selectTerms.add( currentTableAlias + "." + fromColumn.getName() );
             }
+        }
+    }
+
+    private void addToColumns( TableJoin join, final String currentTableAlias ) {
+        for ( final SQLIdentifier toColumn : join.getToColumns() ) {
+            selectTerms.add( currentTableAlias + "." + toColumn.getName() );
         }
     }
 

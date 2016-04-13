@@ -35,6 +35,9 @@
  ----------------------------------------------------------------------------*/
 package org.deegree.feature.persistence.sql.rules;
 
+import static java.lang.Boolean.TRUE;
+import static java.util.Collections.singletonMap;
+import static org.deegree.commons.xml.CommonNamespaces.XSINS;
 import static org.jaxen.saxpath.Axis.CHILD;
 
 import java.io.ByteArrayInputStream;
@@ -62,9 +65,7 @@ import org.deegree.commons.tom.gml.property.Property;
 import org.deegree.commons.tom.gml.property.PropertyType;
 import org.deegree.commons.tom.primitive.BaseType;
 import org.deegree.commons.tom.primitive.PrimitiveValue;
-import org.deegree.commons.tom.sql.ParticleConverter;
 import org.deegree.commons.utils.Pair;
-import org.deegree.commons.xml.CommonNamespaces;
 import org.deegree.commons.xml.NamespaceBindings;
 import org.deegree.commons.xml.stax.XMLStreamReaderWrapper;
 import org.deegree.feature.Feature;
@@ -109,7 +110,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final Connection conn;
 
-    private final TableAliasManager initialAliasManager;
+    private final TableAliasManager aliasManager;
 
     private final NamespaceBindings nsBindings;
 
@@ -135,22 +136,18 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         this.fs = fs;
         this.ftMapping = ftMapping;
         this.conn = conn;
-        this.initialAliasManager = aliasManager;
+        this.aliasManager = aliasManager;
         this.nullEscalation = nullEscalation;
         this.nsBindings = new NamespaceBindings();
         for ( String prefix : fs.getNamespaceContext().keySet() ) {
             String ns = fs.getNamespaceContext().get( prefix );
             nsBindings.addNamespace( prefix, ns );
         }
-        this.selectManager = new SelectManager( initialAliasManager );
+        this.selectManager = new SelectManager( ftMapping, aliasManager, fs );
     }
 
     @Override
     public List<String> getInitialSelectList() {
-        selectManager.add( ftMapping );
-        for ( final Mapping mapping : ftMapping.getMappings() ) {
-            addMapping( selectManager, mapping, null );
-        }
         LOG.debug( "Initial select columns: " + selectManager.selectTerms );
         return new ArrayList<String>( selectManager.selectTerms );
     }
@@ -181,19 +178,6 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             throw new SQLException( t.getMessage(), t );
         }
         return feature;
-    }
-
-    private void addMapping( final SelectManager selectManager, final Mapping mapping, final Mapping parent ) {
-        final ParticleConverter<?> particleConverter = fs.getConverter( mapping );
-        if ( !selectManager.add( mapping, particleConverter, parent ) ) {
-            return;
-        }
-        if ( mapping instanceof CompoundMapping ) {
-            final CompoundMapping cm = (CompoundMapping) mapping;
-            for ( final Mapping childMapping : cm.getParticles() ) {
-                addMapping( selectManager, childMapping, mapping );
-            }
-        }
     }
 
     private String buildGmlId( final ResultSet rs )
@@ -256,15 +240,12 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         if ( propMapping.isSkipOnReconstruct() ) {
             return;
         }
-        final ParticleBuilder particleBuilder = new ParticleBuilder( fs, ftMapping, conn, initialAliasManager,
-                                                                     nullEscalation );
-        List<TypedObjectNode> particles = particleBuilder.build( propMapping, rs,
-                                                                 selectManager.getSelectTermToResultSetIdxMap(),
-                                                                 idPrefix );
+        final ParticleBuilder particleBuilder = new ParticleBuilder( fs, ftMapping, conn, nullEscalation );
+        List<TypedObjectNode> particles = particleBuilder.build( propMapping, rs, selectManager, idPrefix );
         if ( particles.isEmpty() && pt.getMinOccurs() > 0 ) {
             if ( pt.isNillable() ) {
-                Map<QName, PrimitiveValue> attrs = Collections.singletonMap( new QName( CommonNamespaces.XSINS, "nil" ),
-                                                                             new PrimitiveValue( Boolean.TRUE ) );
+                final Map<QName, PrimitiveValue> attrs = singletonMap( new QName( XSINS, "nil" ),
+                                                                       new PrimitiveValue( TRUE ) );
                 props.add( new GenericProperty( pt, propMapping.getPath().getAsQName(), null, attrs,
                                                 Collections.<TypedObjectNode> emptyList() ) );
             } else {
@@ -372,7 +353,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     }
 
     private String qualifyRootColumn( final String column ) {
-        return initialAliasManager.getRootTableAlias() + '.' + column;
+        return aliasManager.getRootTableAlias() + '.' + column;
     }
 
 }

@@ -48,7 +48,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -81,7 +80,6 @@ import org.deegree.geometry.primitive.LineString;
 import org.deegree.geometry.primitive.Polygon;
 import org.deegree.geometry.primitive.patches.SurfacePatch;
 import org.deegree.geometry.primitive.segments.CurveSegment;
-import org.deegree.sqldialect.filter.TableAliasManager;
 import org.jaxen.expr.Expr;
 import org.jaxen.expr.LocationPath;
 import org.jaxen.expr.NameStep;
@@ -107,8 +105,6 @@ class ParticleBuilder {
 
     private final Connection conn;
 
-    private final TableAliasManager initialAliasManager;
-
     private final NamespaceBindings nsBindings;
 
     private final boolean nullEscalation;
@@ -122,15 +118,12 @@ class ParticleBuilder {
      *            feature type mapping, must not be <code>null</code>
      * @param conn
      *            JDBC connection (used for performing subsequent SELECTs), must not be <code>null</code>
-     * @param aliasManager
      * @param escalationPolicy
      *            the void escalation policy, must not be <code>null</code>
      */
-    public ParticleBuilder( SQLFeatureStore fs, FeatureTypeMapping ftMapping, Connection conn,
-                            TableAliasManager aliasManager, boolean nullEscalation ) {
+    public ParticleBuilder( SQLFeatureStore fs, FeatureTypeMapping ftMapping, Connection conn, boolean nullEscalation ) {
         this.fs = fs;
         this.conn = conn;
-        this.initialAliasManager = aliasManager;
         this.nullEscalation = nullEscalation;
         this.nsBindings = new NamespaceBindings();
         for ( String prefix : fs.getNamespaceContext().keySet() ) {
@@ -139,34 +132,35 @@ class ParticleBuilder {
         }
     }
 
-    List<TypedObjectNode> build( Mapping mapping, ResultSet rs, LinkedHashMap<String, Integer> colToRsIdx,
-                                 String idPrefix )
+    List<TypedObjectNode> build( final Mapping mapping, final ResultSet rs, final SelectManager selectManager,
+                                 final String idPrefix )
                             throws SQLException {
         if ( mapping.isSkipOnReconstruct() ) {
-            return Collections.emptyList();
+            return emptyList();
         }
         if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
-            return buildFromJoinedTable( mapping, rs, colToRsIdx, idPrefix );
+            return buildFromJoinedResultSet( mapping, rs, selectManager, idPrefix );
         }
-        final TypedObjectNode particle = buildParticle( mapping, rs, colToRsIdx, idPrefix );
+        final TypedObjectNode particle = buildFromCurrentResultSet( mapping, rs, selectManager, idPrefix );
         if ( particle != null ) {
             return singletonList( particle );
         }
         return emptyList();
     }
 
-    private List<TypedObjectNode> buildFromJoinedTable( Mapping mapping, ResultSet rs,
-                                                        LinkedHashMap<String, Integer> colToRsIdx, String idPrefix )
+    private List<TypedObjectNode> buildFromJoinedResultSet( Mapping mapping, ResultSet rs, SelectManager selectManager,
+                                                            String idPrefix )
                             throws SQLException {
         final List<TypedObjectNode> values = new ArrayList<TypedObjectNode>();
         ResultSet rs2 = null;
         try {
             final TableJoin join = mapping.getJoinedTable().get( 0 );
-            Pair<ResultSet, LinkedHashMap<String, Integer>> p = getJoinedResultSet( join, mapping, rs, colToRsIdx );
+            Pair<ResultSet, SelectManager> p = getJoinedResultSet( join, mapping, rs, selectManager );
             rs2 = p.first;
             int i = 0;
             while ( rs2.next() ) {
-                final TypedObjectNode particle = buildParticle( mapping, rs2, p.second, idPrefix + "_" + ( i++ ) );
+                final TypedObjectNode particle = buildFromCurrentResultSet( mapping, rs2, p.second, idPrefix + "_"
+                                                                                                    + ( i++ ) );
                 if ( particle != null ) {
                     values.add( particle );
                 }
@@ -180,28 +174,23 @@ class ParticleBuilder {
         return values;
     }
 
-    private TypedObjectNode buildParticle( Mapping mapping, ResultSet rs, LinkedHashMap<String, Integer> colToRsIdx,
-                                           String idPrefix )
+    private TypedObjectNode buildFromCurrentResultSet( Mapping mapping, ResultSet rs, SelectManager selectManager,
+                                                       String idPrefix )
                             throws SQLException {
-
         LOG.debug( "Trying to build particle with path {}.", mapping.getPath() );
-
         TypedObjectNode particle = null;
         ParticleConverter<?> converter = fs.getConverter( mapping );
-        final String tableAlias = getRootTableAlias();
-
+        final String tableAlias = selectManager.aliasManager.getRootTableAlias();
         if ( converter != null ) {
-            // particle fully defined by available result set columns
             final String col = converter.getSelectSnippet( tableAlias );
-            final int colIndex = colToRsIdx.get( col );
+            final int colIndex = selectManager.getResultSetIndex( col );
             particle = converter.toParticle( rs, colIndex );
             if ( particle instanceof Geometry ) {
                 ( (Geometry) particle ).setId( idPrefix );
             }
         } else if ( mapping instanceof CompoundMapping ) {
-            particle = buildCompoundParticle( (CompoundMapping) mapping, rs, colToRsIdx, idPrefix );
+            particle = buildCompoundParticle( (CompoundMapping) mapping, rs, selectManager, idPrefix );
         }
-
         if ( particle == null ) {
             LOG.debug( "Building of particle with path {} resulted in NULL.", mapping.getPath() );
         } else {
@@ -211,8 +200,7 @@ class ParticleBuilder {
     }
 
     private TypedObjectNode buildCompoundParticle( final CompoundMapping cm, final ResultSet rs,
-                                                   final LinkedHashMap<String, Integer> colToRsIdx,
-                                                   final String idPrefix )
+                                                   final SelectManager selectManager, final String idPrefix )
                             throws SQLException {
 
         final Map<QName, PrimitiveValue> attrs = new HashMap<QName, PrimitiveValue>();
@@ -221,7 +209,7 @@ class ParticleBuilder {
 
         // collect attributes and children, determine if particle is void (missing or incomplete)
         for ( final Mapping childMapping : cm.getParticles() ) {
-            final List<TypedObjectNode> childValues = build( childMapping, rs, colToRsIdx, idPrefix );
+            final List<TypedObjectNode> childValues = build( childMapping, rs, selectManager, idPrefix );
             if ( nullEscalation && !escalateVoid ) {
                 escalateVoid = isChildRequiredButMissing( childMapping, childValues );
             }
@@ -388,75 +376,6 @@ class ParticleBuilder {
         }
     }
 
-    private void addColumn( LinkedHashMap<String, Integer> colToRsIdx, String column ) {
-        if ( !colToRsIdx.containsKey( column ) ) {
-            colToRsIdx.put( column, colToRsIdx.size() + 1 );
-        }
-    }
-
-    private LinkedHashMap<String, Integer> getSubsequentSelectColumns( Mapping mapping ) {
-        LinkedHashMap<String, Integer> colToRsIdx = new LinkedHashMap<String, Integer>();
-        addSelectColumns( mapping, colToRsIdx, false );
-        return colToRsIdx;
-    }
-
-    private void addSelectColumns( Mapping mapping, LinkedHashMap<String, Integer> colToRsIdx, boolean initial ) {
-        if ( mapping.isSkipOnReconstruct() ) {
-            return;
-        }
-        List<TableJoin> jc = mapping.getJoinedTable();
-        if ( jc != null && initial ) {
-            if ( mapping instanceof FeatureMapping ) {
-                ParticleConverter<?> particleConverter = fs.getConverter( mapping );
-                if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
-                } else {
-                    LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
-                }
-            } else {
-                for ( SQLIdentifier column : jc.get( 0 ).getFromColumns() ) {
-                    addColumn( colToRsIdx, qualifyRootColumn( column.getName() ) );
-                }
-            }
-        } else {
-            ParticleConverter<?> particleConverter = fs.getConverter( mapping );
-            if ( mapping instanceof PrimitiveMapping ) {
-                if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
-                } else {
-                    LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
-                }
-            } else if ( mapping instanceof GeometryMapping ) {
-                if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
-                } else {
-                    LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
-                }
-            } else if ( mapping instanceof FeatureMapping ) {
-                if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
-                } else {
-                    LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
-                }
-            } else if ( mapping instanceof BlobParticleMapping ) {
-                if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
-                } else {
-                    LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
-                }
-            } else if ( mapping instanceof CompoundMapping ) {
-                CompoundMapping cm = (CompoundMapping) mapping;
-                for ( Mapping particle : cm.getParticles() ) {
-                    addSelectColumns( particle, colToRsIdx, true );
-                }
-            } else if ( mapping instanceof SqlExpressionMapping<?> ) {
-                // nothing to do
-            } else {
-                LOG.warn( "Mappings of type '" + mapping.getClass() + "' are not handled yet." );
-            }
-        }
-    }
-
     // TODO where should this happen in the end?
     private TypedObjectNode unwrapCustomGeometry( GenericXMLElement particle ) {
 
@@ -518,17 +437,15 @@ class ParticleBuilder {
         return null;
     }
 
-    private Pair<ResultSet, LinkedHashMap<String, Integer>> getJoinedResultSet( TableJoin jc,
-                                                                                Mapping mapping,
-                                                                                ResultSet rs,
-                                                                                LinkedHashMap<String, Integer> colToRsIdx )
+    private Pair<ResultSet, SelectManager> getJoinedResultSet( TableJoin jc, Mapping mapping, ResultSet rs,
+                                                               SelectManager selectManager )
                             throws SQLException {
 
-        LinkedHashMap<String, Integer> rsToIdx = getSubsequentSelectColumns( mapping );
+        SelectManager rsToIdx = new SelectManager( mapping, jc, fs );
         final String tableAlias = "X1";
         StringBuilder sql = new StringBuilder( "SELECT " );
         boolean first = true;
-        for ( String column : rsToIdx.keySet() ) {
+        for ( String column : rsToIdx.selectTerms ) {
             if ( !first ) {
                 sql.append( ',' );
             }
@@ -576,7 +493,7 @@ class ParticleBuilder {
             LOG.debug( "Preparing subsequent SELECT took {} [ms] ", System.currentTimeMillis() - begin );
             int i = 1;
             for ( SQLIdentifier keyColumn : jc.getFromColumns() ) {
-                Object key = rs.getObject( colToRsIdx.get( tableAlias + "." + keyColumn ) );
+                Object key = rs.getObject( selectManager.getResultSetIndex( tableAlias + "." + keyColumn ) );
                 LOG.debug( "? = '{}' ({})", key, keyColumn );
                 stmt.setObject( i++, key );
             }
@@ -589,7 +506,7 @@ class ParticleBuilder {
             LOG.error( msg, t );
             throw new SQLException( msg, t );
         }
-        return new Pair<ResultSet, LinkedHashMap<String, Integer>>( rs2, rsToIdx );
+        return new Pair<ResultSet, SelectManager>( rs2, rsToIdx );
     }
 
     private QName getQName( NameStep step ) {
@@ -602,14 +519,6 @@ class ParticleBuilder {
             qName = new QName( ns, step.getLocalName(), prefix );
         }
         return qName;
-    }
-
-    private String qualifyRootColumn( final String column ) {
-        return initialAliasManager.getRootTableAlias() + '.' + column;
-    }
-
-    private String getRootTableAlias() {
-        return initialAliasManager.getRootTableAlias();
     }
 
 }
