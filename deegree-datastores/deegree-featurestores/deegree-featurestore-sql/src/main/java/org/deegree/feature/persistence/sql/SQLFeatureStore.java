@@ -1102,8 +1102,9 @@ public class SQLFeatureStore implements FeatureStore {
             long begin = System.currentTimeMillis();
             conn = getConnection();
 
-            String tableAlias = "X1";
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, tableAlias, nullEscalation );
+            final TableAliasManager aliasManager = new TableAliasManager();
+            final String tableAlias = aliasManager.getRootTableAlias();
+            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager, nullEscalation );
             List<String> columns = builder.getInitialSelectList();
             StringBuilder sql = new StringBuilder( "SELECT " );
             sql.append( columns.get( 0 ) );
@@ -1475,7 +1476,7 @@ public class SQLFeatureStore implements FeatureStore {
             LOG.debug( "WHERE clause: " + wb.getWhere() );
             LOG.debug( "ORDER BY clause: " + wb.getOrderBy() );
 
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, ftTableAlias,
+            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, wb.getAliasManager(),
                                                                    nullEscalation );
             List<String> columns = builder.getInitialSelectList();
 

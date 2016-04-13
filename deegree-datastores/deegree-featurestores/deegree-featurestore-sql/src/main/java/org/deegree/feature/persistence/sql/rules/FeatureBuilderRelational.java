@@ -105,6 +105,7 @@ import org.deegree.gml.reference.GmlXlinkOptions;
 import org.deegree.gml.schema.GMLSchemaInfoSet;
 import org.deegree.sqldialect.filter.DBField;
 import org.deegree.sqldialect.filter.MappingExpression;
+import org.deegree.sqldialect.filter.TableAliasManager;
 import org.jaxen.expr.Expr;
 import org.jaxen.expr.LocationPath;
 import org.jaxen.expr.NameStep;
@@ -134,7 +135,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final Connection conn;
 
-    private final String tableAlias;
+    private final TableAliasManager initialAliasManager;
 
     private final NamespaceBindings nsBindings;
 
@@ -153,15 +154,16 @@ public class FeatureBuilderRelational implements FeatureBuilder {
      *            feature type mapping, must not be <code>null</code>
      * @param conn
      *            JDBC connection (used for performing subsequent SELECTs), must not be <code>null</code>
+     * @param aliasManager
      * @param escalationPolicy
      *            the void escalation policy, must not be <code>null</code>
      */
     public FeatureBuilderRelational( SQLFeatureStore fs, FeatureTypeMapping ftMapping, Connection conn,
-                                     String ftTableAlias, boolean nullEscalation ) {
+                                     TableAliasManager aliasManager, boolean nullEscalation ) {
         this.fs = fs;
         this.ftMapping = ftMapping;
         this.conn = conn;
-        this.tableAlias = ftTableAlias;
+        this.initialAliasManager = aliasManager;
         this.nullEscalation = nullEscalation;
         this.nsBindings = new NamespaceBindings();
         for ( String prefix : fs.getNamespaceContext().keySet() ) {
@@ -178,10 +180,10 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     @Override
     public List<String> getInitialSelectList() {
         for ( Pair<SQLIdentifier, BaseType> fidColumn : ftMapping.getFidMapping().getColumns() ) {
-            addColumn( qualifiedSqlExprToRsIdx, tableAlias + "." + fidColumn.first.getName() );
+            addColumn( qualifiedSqlExprToRsIdx, qualifyRootColumn( fidColumn.first.getName() ) );
         }
         if ( ftMapping.getTypeColumn() != null ) {
-            addColumn( qualifiedSqlExprToRsIdx, tableAlias + "." + ftMapping.getTypeColumn().getName() );
+            addColumn( qualifiedSqlExprToRsIdx, qualifyRootColumn( ftMapping.getTypeColumn().getName() ) );
         }
         for ( Mapping mapping : ftMapping.getMappings() ) {
             addSelectColumns( mapping, qualifiedSqlExprToRsIdx, true );
@@ -211,38 +213,38 @@ public class FeatureBuilderRelational implements FeatureBuilder {
             if ( mapping instanceof FeatureMapping ) {
                 ParticleConverter<?> particleConverter = fs.getConverter( mapping );
                 if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( tableAlias ) );
+                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
                 } else {
                     LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
                 }
             } else {
                 for ( SQLIdentifier column : jc.get( 0 ).getFromColumns() ) {
-                    addColumn( colToRsIdx, tableAlias + "." + column );
+                    addColumn( colToRsIdx, qualifyRootColumn( column.getName() ) );
                 }
             }
         } else {
             ParticleConverter<?> particleConverter = fs.getConverter( mapping );
             if ( mapping instanceof PrimitiveMapping ) {
                 if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( tableAlias ) );
+                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
                 } else {
                     LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
                 }
             } else if ( mapping instanceof GeometryMapping ) {
                 if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( tableAlias ) );
+                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
                 } else {
                     LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
                 }
             } else if ( mapping instanceof FeatureMapping ) {
                 if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( tableAlias ) );
+                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
                 } else {
                     LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
                 }
             } else if ( mapping instanceof BlobParticleMapping ) {
                 if ( particleConverter != null ) {
-                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( tableAlias ) );
+                    addColumn( colToRsIdx, particleConverter.getSelectSnippet( getRootTableAlias() ) );
                 } else {
                     LOG.info( "Omitting mapping '" + mapping + "' from SELECT list. Not mapped to column.'" );
                 }
@@ -267,14 +269,13 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         try {
             String gmlId = ftMapping.getFidMapping().getPrefix();
             List<Pair<SQLIdentifier, BaseType>> fidColumns = ftMapping.getFidMapping().getColumns();
-            gmlId += rs.getObject( qualifiedSqlExprToRsIdx.get( tableAlias + "." + fidColumns.get( 0 ).first ) );
+            gmlId += rs.getObject( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( fidColumns.get( 0 ).first.getName() ) ) );
             for ( int i = 1; i < fidColumns.size(); i++ ) {
                 gmlId += ftMapping.getFidMapping().getDelimiter()
-                         + rs.getObject( qualifiedSqlExprToRsIdx.get( tableAlias + "." + fidColumns.get( i ).first ) );
+                         + rs.getObject( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( fidColumns.get( i ).first.getName() ) ) );
             }
             if ( ftMapping.getTypeColumn() != null ) {
-                final String ftName = rs.getString( qualifiedSqlExprToRsIdx.get( tableAlias + "."
-                                                                                 + ftMapping.getTypeColumn().getName() ) );
+                final String ftName = rs.getString( qualifiedSqlExprToRsIdx.get( qualifyRootColumn( ftMapping.getTypeColumn().getName() ) ) );
                 LOG.debug ("Ambigous feature type mapping: Using feature type from type column: " + ftName);
                 ft = fs.getSchema().getFeatureType( QName.valueOf( ftName ) );
             }
@@ -472,6 +473,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
         TypedObjectNode particle = null;
         ParticleConverter<?> converter = fs.getConverter( mapping );
+        final String tableAlias = getRootTableAlias();
 
         if ( mapping instanceof PrimitiveMapping ) {
             PrimitiveMapping pm = (PrimitiveMapping) mapping;
@@ -751,7 +753,7 @@ public class FeatureBuilderRelational implements FeatureBuilder {
                             throws SQLException {
 
         LinkedHashMap<String, Integer> rsToIdx = getSubsequentSelectColumns( mapping );
-
+        final String tableAlias = "X1";
         StringBuilder sql = new StringBuilder( "SELECT " );
         boolean first = true;
         for ( String column : rsToIdx.keySet() ) {
@@ -868,4 +870,13 @@ public class FeatureBuilderRelational implements FeatureBuilder {
         }
         return false;
     }
+
+    private String qualifyRootColumn( final String column ) {
+        return initialAliasManager.getRootTableAlias() + '.' + column;
+    }
+
+    private String getRootTableAlias () {
+        return initialAliasManager.getRootTableAlias();
+    }
+
 }
