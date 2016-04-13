@@ -42,4 +42,14 @@ public class AixmFeatureBuilderIT extends SQLFeatureStoreTestCase {
         assertGmlEquals( fc.iterator().next(), "aixm/expected/crane_5_relational.xml" );
     }
 
+    public void testBuildFeatureRelationalUnspecifiedFeatureType()
+                            throws Exception {
+        fs = setUpFeatureStore( "aixm-relational", "aixm/workspace" );
+        importGml( fs, "aixm/data/Donlon.xml", GENERATE_NEW );
+        final Query query = buildGmlIdentifierQuery( "8c755520-b42b-11e3-a5e2-0800500c9a66", null );
+        final FeatureCollection fc = fs.query( query ).toCollection();
+        assertEquals( 1, fc.size() );
+        assertGmlEquals( fc.iterator().next(), "aixm/expected/crane_5_relational.xml" );
+    }
+
 }
