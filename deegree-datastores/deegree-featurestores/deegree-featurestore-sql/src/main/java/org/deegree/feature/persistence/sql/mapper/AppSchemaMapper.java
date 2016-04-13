@@ -42,6 +42,7 @@ import static org.deegree.commons.tom.primitive.BaseType.STRING;
 import static org.deegree.commons.xml.CommonNamespaces.XLNNS;
 import static org.deegree.commons.xml.CommonNamespaces.XSINS;
 import static org.deegree.feature.persistence.sql.blob.BlobCodec.Compression.NONE;
+import static org.deegree.feature.persistence.sql.jaxb.FetchModeType.SELECT;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -487,7 +488,7 @@ public class AppSchemaMapper {
         Map<SQLIdentifier, IDGenerator> keyColumnToIdGenerator = new HashMap<SQLIdentifier, IDGenerator>();
         keyColumnToIdGenerator.put( new SQLIdentifier( "id" ), new AutoIDGenerator() );
         TableJoin join = new TableJoin( fromTable, toTable, fromColumns, toColumns, orderColumns, true,
-                                        keyColumnToIdGenerator );
+                                        keyColumnToIdGenerator, SELECT );
         return Collections.singletonList( join );
     }
 
@@ -503,7 +504,7 @@ public class AppSchemaMapper {
         Map<SQLIdentifier, IDGenerator> keyColumnToIdGenerator = new HashMap<SQLIdentifier, IDGenerator>();
         keyColumnToIdGenerator.put( new SQLIdentifier( "id" ), new AutoIDGenerator() );
         ftJoin = new TableJoin( fromTable, toTable, fromColumns, toColumns, Collections.EMPTY_LIST, false,
-                                keyColumnToIdGenerator );
+                                keyColumnToIdGenerator, SELECT );
         return ftJoin;
     }
 

@@ -227,7 +227,7 @@ public abstract class AbstractMappedSchemaBuilder {
             }
 
             TableJoin tj = new TableJoin( from, target, join.getFromColumns(), join.getToColumns(),
-                                          join.getOrderColumns(), isNumbered, keyColumnToGenerator );
+                                          join.getOrderColumns(), isNumbered, keyColumnToGenerator, join.getFetchMode() );
             return Collections.singletonList( tj );
         }
         return null;

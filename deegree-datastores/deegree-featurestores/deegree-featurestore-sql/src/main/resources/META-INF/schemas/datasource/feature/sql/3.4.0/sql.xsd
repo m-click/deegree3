@@ -396,6 +396,7 @@
           </documentation>
         </annotation>
       </attribute>
+      <attribute name="fetchMode" type="sqlfs:fetchModeType" use="optional" default="select" />
     </complexType>
   </element>
   <element name="CustomConverter">
@@ -537,6 +538,12 @@
   </simpleType>
   <simpleType name="columnList">
     <list itemType="string" />
+  </simpleType>
+  <simpleType name="fetchModeType">
+    <restriction base="string">
+      <enumeration value="select" />
+      <enumeration value="join" />
+    </restriction>
   </simpleType>
 
   <!-- === Elements for old-style table-driven mode configuration === -->

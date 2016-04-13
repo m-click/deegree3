@@ -42,6 +42,7 @@ import java.util.Map;
 import org.deegree.commons.jdbc.SQLIdentifier;
 import org.deegree.commons.jdbc.TableName;
 import org.deegree.feature.persistence.sql.id.IDGenerator;
+import org.deegree.feature.persistence.sql.jaxb.FetchModeType;
 import org.deegree.sqldialect.filter.MappingExpression;
 
 /**
@@ -68,9 +69,11 @@ public class TableJoin implements MappingExpression {
 
     private final Map<SQLIdentifier, IDGenerator> keyColumnToGenerator;
 
+    private final FetchModeType fetchMode;
+
     public TableJoin( TableName fromTable, TableName toTable, List<String> fromColumns, List<String> toColumns,
                       List<String> orderColumns, boolean numberedOrder,
-                      Map<SQLIdentifier, IDGenerator> keyColumnToGenerator ) {
+                      Map<SQLIdentifier, IDGenerator> keyColumnToGenerator, FetchModeType fetchMode ) {
         this.fromTable = fromTable;
         this.toTable = toTable;
         if ( fromColumns != null ) {
@@ -99,6 +102,7 @@ public class TableJoin implements MappingExpression {
         }
         this.numberedOrder = numberedOrder;
         this.keyColumnToGenerator = keyColumnToGenerator;
+        this.fetchMode = fetchMode;
     }
 
     public TableName getFromTable() {
@@ -127,6 +131,10 @@ public class TableJoin implements MappingExpression {
 
     public Map<SQLIdentifier, IDGenerator> getKeyColumnToGenerator() {
         return keyColumnToGenerator;
+    }
+
+    public FetchModeType getFetchMode() {
+        return fetchMode;
     }
 
     @Override
