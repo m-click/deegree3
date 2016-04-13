@@ -35,6 +35,8 @@
 package org.deegree.feature.persistence.sql.rules;
 
 import static java.lang.Boolean.TRUE;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.deegree.commons.utils.JDBCUtils.close;
 import static org.deegree.commons.xml.CommonNamespaces.XSINS;
 import static org.deegree.commons.xml.CommonNamespaces.XSI_PREFIX;
@@ -66,9 +68,7 @@ import org.deegree.commons.tom.gml.property.PropertyType;
 import org.deegree.commons.tom.primitive.PrimitiveValue;
 import org.deegree.commons.tom.sql.ParticleConverter;
 import org.deegree.commons.utils.Pair;
-import org.deegree.commons.xml.CommonNamespaces;
 import org.deegree.commons.xml.NamespaceBindings;
-import org.deegree.feature.Feature;
 import org.deegree.feature.persistence.sql.FeatureTypeMapping;
 import org.deegree.feature.persistence.sql.SQLFeatureStore;
 import org.deegree.feature.persistence.sql.expressions.TableJoin;
@@ -81,8 +81,6 @@ import org.deegree.geometry.primitive.LineString;
 import org.deegree.geometry.primitive.Polygon;
 import org.deegree.geometry.primitive.patches.SurfacePatch;
 import org.deegree.geometry.primitive.segments.CurveSegment;
-import org.deegree.sqldialect.filter.DBField;
-import org.deegree.sqldialect.filter.MappingExpression;
 import org.deegree.sqldialect.filter.TableAliasManager;
 import org.jaxen.expr.Expr;
 import org.jaxen.expr.LocationPath;
@@ -90,18 +88,16 @@ import org.jaxen.expr.NameStep;
 import org.jaxen.expr.NumberExpr;
 import org.jaxen.expr.Predicate;
 import org.jaxen.expr.Step;
-import org.jaxen.expr.TextNodeStep;
 import org.jaxen.saxpath.Axis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Builds {@link Feature} instances from SQL result set rows (relational mode).
+ * Builds {@link TypedObjectNode} instances from SQL result set rows (relational mode).
  * 
- * @author <a href="mailto:schneider@lat-lon.de">Markus Schneider</a>
- * @author last edited by: $Author$
+ * @author <a href="mailto:schneider@occamlabs.de">Markus Schneider</a>
  * 
- * @version $Revision$, $Date$
+ * @since 3.4
  */
 class ParticleBuilder {
 
@@ -150,32 +146,246 @@ class ParticleBuilder {
             return Collections.emptyList();
         }
         if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
-            List<TypedObjectNode> values = new ArrayList<TypedObjectNode>();
-            ResultSet rs2 = null;
-            try {
-                Pair<ResultSet, LinkedHashMap<String, Integer>> p = getJoinedResultSet( mapping.getJoinedTable().get( 0 ),
-                                                                                        mapping, rs, colToRsIdx );
-                rs2 = p.first;
-                int i = 0;
-                while ( rs2.next() ) {
-                    TypedObjectNode particle = buildParticle( mapping, rs2, p.second, idPrefix + "_" + ( i++ ) );
-                    if ( particle != null ) {
-                        values.add( particle );
-                    }
-                }
-            } finally {
-                if ( rs2 != null ) {
-                    rs2.getStatement().close();
-                    rs2.close();
+            return buildFromJoinedTable( mapping, rs, colToRsIdx, idPrefix );
+        }
+        final TypedObjectNode particle = buildParticle( mapping, rs, colToRsIdx, idPrefix );
+        if ( particle != null ) {
+            return singletonList( particle );
+        }
+        return emptyList();
+    }
+
+    private List<TypedObjectNode> buildFromJoinedTable( Mapping mapping, ResultSet rs,
+                                                        LinkedHashMap<String, Integer> colToRsIdx, String idPrefix )
+                            throws SQLException {
+        final List<TypedObjectNode> values = new ArrayList<TypedObjectNode>();
+        ResultSet rs2 = null;
+        try {
+            final TableJoin join = mapping.getJoinedTable().get( 0 );
+            Pair<ResultSet, LinkedHashMap<String, Integer>> p = getJoinedResultSet( join, mapping, rs, colToRsIdx );
+            rs2 = p.first;
+            int i = 0;
+            while ( rs2.next() ) {
+                final TypedObjectNode particle = buildParticle( mapping, rs2, p.second, idPrefix + "_" + ( i++ ) );
+                if ( particle != null ) {
+                    values.add( particle );
                 }
             }
-            return values;
+        } finally {
+            if ( rs2 != null ) {
+                rs2.getStatement().close();
+                rs2.close();
+            }
         }
-        TypedObjectNode particle = buildParticle( mapping, rs, colToRsIdx, idPrefix );
-        if ( particle != null ) {
-            return Collections.singletonList( particle );
+        return values;
+    }
+
+    private TypedObjectNode buildParticle( Mapping mapping, ResultSet rs, LinkedHashMap<String, Integer> colToRsIdx,
+                                           String idPrefix )
+                            throws SQLException {
+
+        LOG.debug( "Trying to build particle with path {}.", mapping.getPath() );
+
+        TypedObjectNode particle = null;
+        ParticleConverter<?> converter = fs.getConverter( mapping );
+        final String tableAlias = getRootTableAlias();
+
+        if ( converter != null ) {
+            // particle fully defined by available result set columns
+            final String col = converter.getSelectSnippet( tableAlias );
+            final int colIndex = colToRsIdx.get( col );
+            particle = converter.toParticle( rs, colIndex );
+            if ( particle instanceof Geometry ) {
+                ( (Geometry) particle ).setId( idPrefix );
+            }
+        } else if ( mapping instanceof CompoundMapping ) {
+            particle = buildCompoundParticle( (CompoundMapping) mapping, rs, colToRsIdx, idPrefix );
         }
-        return Collections.emptyList();
+
+        if ( particle == null ) {
+            LOG.debug( "Building of particle with path {} resulted in NULL.", mapping.getPath() );
+        } else {
+            LOG.debug( "Built particle with path {}.", mapping.getPath() );
+        }
+        return particle;
+    }
+
+    private TypedObjectNode buildCompoundParticle( final CompoundMapping cm, final ResultSet rs,
+                                                   final LinkedHashMap<String, Integer> colToRsIdx,
+                                                   final String idPrefix )
+                            throws SQLException {
+
+        final Map<QName, PrimitiveValue> attrs = new HashMap<QName, PrimitiveValue>();
+        final List<TypedObjectNode> children = new ArrayList<TypedObjectNode>();
+        boolean escalateVoid = false;
+
+        // collect attributes and children, determine if particle is void (missing or incomplete)
+        for ( final Mapping childMapping : cm.getParticles() ) {
+            final List<TypedObjectNode> childValues = build( childMapping, rs, colToRsIdx, idPrefix );
+            if ( nullEscalation && !escalateVoid ) {
+                escalateVoid = isChildRequiredButMissing( childMapping, childValues );
+            }
+            addChildParticles( attrs, children, childMapping, childValues );
+        }
+
+        return buildCompoundParticle( cm, attrs, children, escalateVoid );
+    }
+
+    private boolean isChildRequiredButMissing( final Mapping childMapping, final List<TypedObjectNode> childValues ) {
+        if ( childMapping.isVoidable() ) {
+            return false;
+        }
+        for ( final TypedObjectNode childValue : childValues ) {
+            if ( childValue != null ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void addChildParticles( final Map<QName, PrimitiveValue> attrs, final List<TypedObjectNode> children,
+                                    final Mapping particleMapping, final List<TypedObjectNode> particleValues ) {
+        final Expr xpath = particleMapping.getPath().getAsXPath();
+        assertLocationPath( xpath );
+        final LocationPath lp = (LocationPath) xpath;
+        assertRelativeWithSingleStep( lp );
+        final Step step = (Step) lp.getSteps().get( 0 );
+        assertUnpredicatedOrNumbered( step );
+        if ( step instanceof NameStep ) {
+            final NameStep ns = (NameStep) step;
+            final QName name = getQName( ns );
+            if ( step.getAxis() == Axis.ATTRIBUTE ) {
+                addAttributes( attrs, particleValues, name );
+            } else if ( step.getAxis() == Axis.CHILD ) {
+                addElements( children, particleValues, name );
+            } else {
+                final String msg = "Only attribute or child paths are allowed.";
+                throw new IllegalArgumentException( msg );
+            }
+        } else {
+            children.addAll( particleValues );
+        }
+    }
+
+    private TypedObjectNode buildCompoundParticle( final CompoundMapping cm, final Map<QName, PrimitiveValue> attrs,
+                                                   final List<TypedObjectNode> children, boolean escalateVoid ) {
+        final QName elName = getName( cm.getPath() );
+        GenericXMLElement particle = null;
+        // if xsi:nil attribute is present, return empty element with xsi:nil (but keep attributes)
+        if ( isNilled( attrs ) ) {
+            particle = new GenericXMLElement( elName, cm.getElementDecl(), attrs, null );
+        } else if ( escalateVoid ) {
+            if ( cm.isVoidable() ) {
+                LOG.debug( "Materializing void by omitting particle for path {}.", cm.getPath() );
+                return null;
+            }
+            if ( cm.getElementDecl() != null && cm.getElementDecl().getNillable() ) {
+                LOG.debug( "Materializing void by nilling particle for path {}.", cm.getPath() );
+                // required attributes must still be present even if element is nilled...
+                final Map<QName, PrimitiveValue> nilAttrs = new HashMap<QName, PrimitiveValue>();
+                if ( cm.getElementDecl().getTypeDefinition() instanceof XSComplexTypeDefinition ) {
+                    XSComplexTypeDefinition complexType = (XSComplexTypeDefinition) cm.getElementDecl().getTypeDefinition();
+                    XSObjectList attrUses = complexType.getAttributeUses();
+                    for ( int i = 0; i < attrUses.getLength(); i++ ) {
+                        XSAttributeUse attrUse = (XSAttributeUse) attrUses.item( i );
+                        if ( attrUse.getRequired() ) {
+                            QName attrName = null;
+                            XSAttributeDeclaration attrDecl = attrUse.getAttrDeclaration();
+                            if ( attrDecl.getNamespace() == null || attrDecl.getNamespace().isEmpty() ) {
+                                attrName = new QName( attrDecl.getName() );
+                            } else {
+                                attrName = new QName( attrDecl.getNamespace(), attrDecl.getName() );
+                            }
+                            PrimitiveValue attrValue = attrs.get( attrName );
+                            if ( attrValue == null ) {
+                                LOG.debug( "Required attribute " + attrName
+                                           + "not present. Cannot void using xsi:nil. Escalating void value." );
+                                return null;
+                            }
+                            nilAttrs.put( attrName, attrValue );
+                        }
+                    }
+                }
+                nilAttrs.put( new QName( XSINS, "nil", XSI_PREFIX ), new PrimitiveValue( TRUE ) );
+                particle = new GenericXMLElement( elName, cm.getElementDecl(), nilAttrs, null );
+            }
+        } else {
+            if ( ( !attrs.isEmpty() ) || !children.isEmpty() ) {
+                particle = new GenericXMLElement( elName, cm.getElementDecl(), attrs, children );
+            }
+        }
+
+        // special case: geometry element mapped via compound mapping and child geometry mapping uses self axis path (.)
+        if ( fs.getSchema().getGeometryType( elName ) != null ) {
+            return unwrapCustomGeometry( particle );
+        }
+        return particle;
+    }
+
+    private boolean isNilled( final Map<QName, PrimitiveValue> attrs ) {
+        final PrimitiveValue nilled = attrs.get( new QName( XSINS, "nil" ) );
+        return nilled != null && nilled.getValue().equals( TRUE );
+    }
+
+    private void assertLocationPath( final Expr xpath ) {
+        if ( !( xpath instanceof LocationPath ) ) {
+            final String msg = "XPath expression '" + xpath + "' invalid: Only location paths are allowed.";
+            throw new IllegalArgumentException( msg );
+        }
+    }
+
+    private void assertRelativeWithSingleStep( final LocationPath lp ) {
+        if ( lp.getSteps().size() != 1 ) {
+            final String msg = "Location '" + lp + "' invalid: Only single step paths are allowed.";
+            throw new IllegalArgumentException( msg );
+        }
+        if ( lp.isAbsolute() ) {
+            final String msg = "Location '" + lp + "' invalid: Only relative paths are allowed.";
+            throw new IllegalArgumentException( msg );
+        }
+    }
+
+    private void assertUnpredicatedOrNumbered( final Step step ) {
+        if ( !step.getPredicates().isEmpty() ) {
+            final List<?> predicates = step.getPredicates();
+            if ( predicates.size() == 1 ) {
+                final Expr predicate = ( (Predicate) predicates.get( 0 ) ).getExpr();
+                if ( predicate instanceof NumberExpr ) {
+                    LOG.debug( "Number predicate. Assuming natural ordering." );
+                } else {
+                    final String msg = "Step '" + step + "' invalid: Only number predicates are allowed.";
+                    throw new IllegalArgumentException( msg );
+                }
+            } else {
+                final String msg = "Step '" + step + "' invalid: Only a single number predicate is allowed.";
+                throw new IllegalArgumentException( msg );
+            }
+        }
+    }
+
+    private void addAttributes( Map<QName, PrimitiveValue> attrs, List<TypedObjectNode> particleValues, final QName name ) {
+        for ( final TypedObjectNode particleValue : particleValues ) {
+            if ( particleValue instanceof PrimitiveValue ) {
+                attrs.put( name, (PrimitiveValue) particleValue );
+            } else {
+                LOG.warn( "Value not suitable for attribute." );
+            }
+        }
+    }
+
+    private void addElements( List<TypedObjectNode> children, List<TypedObjectNode> particleValues, final QName name ) {
+        for ( TypedObjectNode particleValue : particleValues ) {
+            if ( particleValue instanceof PrimitiveValue ) {
+                // TODO
+                XSElementDeclaration childType = null;
+                GenericXMLElement child = new GenericXMLElement( name, childType,
+                                                                 Collections.<QName, PrimitiveValue> emptyMap(),
+                                                                 singletonList( particleValue ) );
+                children.add( child );
+            } else if ( particleValue != null ) {
+                children.add( particleValue );
+            }
+        }
     }
 
     private void addColumn( LinkedHashMap<String, Integer> colToRsIdx, String column ) {
@@ -245,226 +455,6 @@ class ParticleBuilder {
                 LOG.warn( "Mappings of type '" + mapping.getClass() + "' are not handled yet." );
             }
         }
-    }
-
-    private TypedObjectNode buildParticle( Mapping mapping, ResultSet rs, LinkedHashMap<String, Integer> colToRsIdx,
-                                           String idPrefix )
-                            throws SQLException {
-
-        LOG.debug( "Trying to build particle with path {}.", mapping.getPath() );
-
-        TypedObjectNode particle = null;
-        ParticleConverter<?> converter = fs.getConverter( mapping );
-        final String tableAlias = getRootTableAlias();
-
-        if ( mapping instanceof PrimitiveMapping ) {
-            PrimitiveMapping pm = (PrimitiveMapping) mapping;
-            MappingExpression me = pm.getMapping();
-            String col = converter.getSelectSnippet( tableAlias );
-            int colIndex = colToRsIdx.get( col );
-            particle = converter.toParticle( rs, colIndex );
-        } else if ( mapping instanceof GeometryMapping ) {
-            GeometryMapping pm = (GeometryMapping) mapping;
-            MappingExpression me = pm.getMapping();
-            if ( me instanceof DBField ) {
-                String col = converter.getSelectSnippet( tableAlias );
-                int colIndex = colToRsIdx.get( col );
-                particle = converter.toParticle( rs, colIndex );
-                Geometry geom = ( (Geometry) particle );
-                if ( geom != null ) {
-                    geom.setId( idPrefix );
-                }
-            }
-        } else if ( mapping instanceof FeatureMapping ) {
-            FeatureMapping fm = (FeatureMapping) mapping;
-            // if ( fm.getJoinedTable() != null && !fm.getJoinedTable().isEmpty() ) {
-            String col = converter.getSelectSnippet( tableAlias );
-            int colIndex = colToRsIdx.get( col );
-            particle = converter.toParticle( rs, colIndex );
-            // }
-        } else if ( mapping instanceof BlobParticleMapping ) {
-            final BlobParticleMapping bm = (BlobParticleMapping) mapping;
-            final MappingExpression me = bm.getMapping();
-            if ( me instanceof DBField ) {
-                final String col = converter.getSelectSnippet( tableAlias );
-                final int colIndex = colToRsIdx.get( col );
-                particle = converter.toParticle( rs, colIndex );
-            }
-        } else if ( mapping instanceof CompoundMapping ) {
-            CompoundMapping cm = (CompoundMapping) mapping;
-            if ( converter != null ) {
-                final String col = converter.getSelectSnippet( tableAlias );
-                final int colIndex = colToRsIdx.get( col );
-                particle = converter.toParticle( rs, colIndex );
-            } else {
-                particle = buildParticleRecursively( cm, rs, colToRsIdx, idPrefix );
-            }
-        } else {
-            LOG.warn( "Handling of '" + mapping.getClass() + "' mappings is not implemented yet." );
-        }
-
-        if ( particle == null ) {
-            LOG.debug( "Building of particle with path {} resulted in NULL.", mapping.getPath() );
-        } else {
-            LOG.debug( "Built particle with path {}.", mapping.getPath() );
-        }
-
-        return particle;
-    }
-
-    private TypedObjectNode buildParticleRecursively( final CompoundMapping cm, final ResultSet rs,
-                                                      final LinkedHashMap<String, Integer> colToRsIdx,
-                                                      final String idPrefix )
-                            throws SQLException {
-
-        Map<QName, PrimitiveValue> attrs = new HashMap<QName, PrimitiveValue>();
-        List<TypedObjectNode> children = new ArrayList<TypedObjectNode>();
-
-        boolean escalateVoid = false;
-
-        for ( Mapping particleMapping : cm.getParticles() ) {
-
-            // TODO idPrefix
-            List<TypedObjectNode> particleValues = build( particleMapping, rs, colToRsIdx, idPrefix );
-
-            if ( !particleMapping.isVoidable() ) {
-                boolean found = false;
-                for ( TypedObjectNode particleValue : particleValues ) {
-                    if ( particleValue != null ) {
-                        found = true;
-                    }
-                }
-                if ( !found && this.nullEscalation ) {
-                    escalateVoid = true;
-                }
-            }
-
-            Expr xpath = particleMapping.getPath().getAsXPath();
-            if ( xpath instanceof LocationPath ) {
-                LocationPath lp = (LocationPath) xpath;
-                if ( lp.getSteps().size() != 1 ) {
-                    LOG.warn( "Unhandled location path: '" + particleMapping.getPath()
-                              + "'. Only single step paths are handled." );
-                    continue;
-                }
-                if ( lp.isAbsolute() ) {
-                    LOG.warn( "Unhandled location path: '" + particleMapping.getPath()
-                              + "'. Only relative paths are handled." );
-                    continue;
-                }
-                Step step = (Step) lp.getSteps().get( 0 );
-                if ( !step.getPredicates().isEmpty() ) {
-                    List<?> predicates = step.getPredicates();
-                    if ( predicates.size() == 1 ) {
-                        Expr predicate = ( (Predicate) predicates.get( 0 ) ).getExpr();
-                        if ( predicate instanceof NumberExpr ) {
-                            LOG.debug( "Number predicate. Assuming natural ordering." );
-                        } else {
-                            continue;
-                        }
-                    } else {
-                        LOG.warn( "Unhandled location path: '" + particleMapping.getPath()
-                                  + "'. Only unpredicated steps are handled." );
-                        continue;
-                    }
-                }
-                if ( step instanceof TextNodeStep ) {
-                    for ( TypedObjectNode particleValue : particleValues ) {
-                        children.add( particleValue );
-                    }
-                } else if ( step instanceof NameStep ) {
-                    NameStep ns = (NameStep) step;
-                    QName name = getQName( ns );
-                    if ( step.getAxis() == Axis.ATTRIBUTE ) {
-                        for ( TypedObjectNode particleValue : particleValues ) {
-                            if ( particleValue instanceof PrimitiveValue ) {
-                                attrs.put( name, (PrimitiveValue) particleValue );
-                            } else {
-                                LOG.warn( "Value not suitable for attribute." );
-                            }
-                        }
-                    } else if ( step.getAxis() == Axis.CHILD ) {
-                        for ( TypedObjectNode particleValue : particleValues ) {
-                            if ( particleValue instanceof PrimitiveValue ) {
-                                // TODO
-                                XSElementDeclaration childType = null;
-                                GenericXMLElement child = new GenericXMLElement(
-                                                                                 name,
-                                                                                 childType,
-                                                                                 Collections.<QName, PrimitiveValue> emptyMap(),
-                                                                                 Collections.singletonList( particleValue ) );
-                                children.add( child );
-                            } else if ( particleValue != null ) {
-                                children.add( particleValue );
-                            }
-                        }
-                    } else {
-                        LOG.warn( "Unhandled axis type '" + step.getAxis() + "' for path: '"
-                                  + particleMapping.getPath() + "'" );
-                    }
-                } else {
-                    // TODO handle other steps as self()
-                    for ( TypedObjectNode particleValue : particleValues ) {
-                        children.add( particleValue );
-                    }
-                }
-            } else {
-                LOG.warn( "Unhandled mapping type '" + particleMapping.getClass() + "' for path: '"
-                          + particleMapping.getPath() + "'" );
-            }
-        }
-
-        TypedObjectNode particle = null;
-        PrimitiveValue nilled = attrs.get( new QName( CommonNamespaces.XSINS, "nil" ) );
-        if ( nilled != null && nilled.getValue().equals( TRUE ) ) {
-            QName elName = getName( cm.getPath() );
-            particle = new GenericXMLElement( elName, cm.getElementDecl(), attrs, null );
-        } else if ( escalateVoid ) {
-            if ( cm.isVoidable() ) {
-                LOG.debug( "Materializing void by omitting particle for path {}.", cm.getPath() );
-            } else if ( cm.getElementDecl() != null && cm.getElementDecl().getNillable() ) {
-                LOG.debug( "Materializing void by nilling particle for path {}.", cm.getPath() );
-                QName elName = getName( cm.getPath() );
-                // required attributes must still be present even if element is nilled...
-                Map<QName, PrimitiveValue> nilAttrs = new HashMap<QName, PrimitiveValue>();
-                if ( cm.getElementDecl().getTypeDefinition() instanceof XSComplexTypeDefinition ) {
-                    XSComplexTypeDefinition complexType = (XSComplexTypeDefinition) cm.getElementDecl().getTypeDefinition();
-                    XSObjectList attrUses = complexType.getAttributeUses();
-                    for ( int i = 0; i < attrUses.getLength(); i++ ) {
-                        XSAttributeUse attrUse = (XSAttributeUse) attrUses.item( i );
-                        if ( attrUse.getRequired() ) {
-                            QName attrName = null;
-                            XSAttributeDeclaration attrDecl = attrUse.getAttrDeclaration();
-                            if ( attrDecl.getNamespace() == null || attrDecl.getNamespace().isEmpty() ) {
-                                attrName = new QName( attrDecl.getName() );
-                            } else {
-                                attrName = new QName( attrDecl.getNamespace(), attrDecl.getName() );
-                            }
-                            PrimitiveValue attrValue = attrs.get( attrName );
-                            if ( attrValue == null ) {
-                                LOG.debug( "Required attribute " + attrName
-                                           + "not present. Cannot void using xsi:nil. Escalating void value." );
-                                return null;
-                            }
-                            nilAttrs.put( attrName, attrValue );
-                        }
-                    }
-                }
-                nilAttrs.put( new QName( XSINS, "nil", XSI_PREFIX ), new PrimitiveValue( TRUE ) );
-                particle = new GenericXMLElement( elName, cm.getElementDecl(), nilAttrs, null );
-            }
-        } else {
-            if ( ( !attrs.isEmpty() ) || !children.isEmpty() ) {
-                QName elName = getName( cm.getPath() );
-                particle = new GenericXMLElement( elName, cm.getElementDecl(), attrs, children );
-            }
-        }
-
-        QName elName = getName( cm.getPath() );
-        if ( particle instanceof GenericXMLElement && fs.getSchema().getGeometryType( elName ) != null ) {
-            particle = unwrapCustomGeometry( (GenericXMLElement) particle );
-        }
-        return particle;
     }
 
     // TODO where should this happen in the end?
