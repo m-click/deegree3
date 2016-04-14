@@ -40,6 +40,7 @@ import static java.util.Collections.singletonList;
 import static org.deegree.commons.utils.JDBCUtils.close;
 import static org.deegree.commons.xml.CommonNamespaces.XSINS;
 import static org.deegree.commons.xml.CommonNamespaces.XSI_PREFIX;
+import static org.deegree.feature.persistence.sql.jaxb.FetchModeType.JOIN;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -138,7 +139,7 @@ class ParticleBuilder {
         if ( mapping.isSkipOnReconstruct() ) {
             return emptyList();
         }
-        if ( !( mapping instanceof FeatureMapping ) && mapping.getJoinedTable() != null ) {
+        if ( needsSubselect( mapping, selectManager ) ) {
             return buildFromJoinedResultSet( mapping, rs, selectManager, idPrefix );
         }
         final TypedObjectNode particle = buildFromCurrentResultSet( mapping, rs, selectManager, idPrefix );
@@ -146,6 +147,16 @@ class ParticleBuilder {
             return singletonList( particle );
         }
         return emptyList();
+    }
+
+    private boolean needsSubselect( final Mapping mapping, final SelectManager selectManager ) {
+        if ( mapping instanceof FeatureMapping ) {
+            return false;
+        }
+        if ( mapping.getJoinedTable() == null ) {
+            return false;
+        }
+        return mapping.getJoinedTable().get( 0 ).getFetchMode() != JOIN;
     }
 
     private List<TypedObjectNode> buildFromJoinedResultSet( Mapping mapping, ResultSet rs, SelectManager selectManager,
@@ -177,10 +188,9 @@ class ParticleBuilder {
     private TypedObjectNode buildFromCurrentResultSet( Mapping mapping, ResultSet rs, SelectManager selectManager,
                                                        String idPrefix )
                             throws SQLException {
-        LOG.debug( "Trying to build particle with path {}.", mapping.getPath() );
         TypedObjectNode particle = null;
         ParticleConverter<?> converter = fs.getConverter( mapping );
-        final String tableAlias = selectManager.aliasManager.getRootTableAlias();
+        final String tableAlias = selectManager.mappingToTableAlias.get( mapping );
         if ( converter != null ) {
             final String col = converter.getSelectSnippet( tableAlias );
             final int colIndex = selectManager.getResultSetIndex( col );
@@ -190,11 +200,6 @@ class ParticleBuilder {
             }
         } else if ( mapping instanceof CompoundMapping ) {
             particle = buildCompoundParticle( (CompoundMapping) mapping, rs, selectManager, idPrefix );
-        }
-        if ( particle == null ) {
-            LOG.debug( "Building of particle with path {} resulted in NULL.", mapping.getPath() );
-        } else {
-            LOG.debug( "Built particle with path {}.", mapping.getPath() );
         }
         return particle;
     }
@@ -441,11 +446,11 @@ class ParticleBuilder {
                                                                SelectManager selectManager )
                             throws SQLException {
 
-        SelectManager rsToIdx = new SelectManager( mapping, jc, fs );
-        final String tableAlias = "X1";
+        SelectManager subSelectManager = new SelectManager( mapping, jc, fs );
+        final String tableAlias = subSelectManager.aliasManager.getRootTableAlias();
         StringBuilder sql = new StringBuilder( "SELECT " );
         boolean first = true;
-        for ( String column : rsToIdx.selectTerms ) {
+        for ( String column : subSelectManager.selectTerms ) {
             if ( !first ) {
                 sql.append( ',' );
             }
@@ -506,7 +511,7 @@ class ParticleBuilder {
             LOG.error( msg, t );
             throw new SQLException( msg, t );
         }
-        return new Pair<ResultSet, SelectManager>( rs2, rsToIdx );
+        return new Pair<ResultSet, SelectManager>( rs2, subSelectManager );
     }
 
     private QName getQName( NameStep step ) {

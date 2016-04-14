@@ -1,22 +1,20 @@
 package org.deegree.feature.persistence.sql.aixm;
 
-import static org.deegree.protocol.wfs.transaction.action.IDGenMode.GENERATE_NEW;
 import static org.deegree.protocol.wfs.transaction.action.IDGenMode.USE_EXISTING;
 
 import javax.xml.namespace.QName;
 
+import org.deegree.feature.Feature;
 import org.deegree.feature.FeatureCollection;
 import org.deegree.feature.persistence.query.Query;
 import org.deegree.feature.persistence.sql.SQLFeatureStore;
 import org.deegree.feature.persistence.sql.SQLFeatureStoreTestCase;
 import org.deegree.filter.Filter;
-import org.deegree.filter.IdFilter;
 import org.deegree.filter.Operator;
 import org.deegree.filter.OperatorFilter;
 import org.deegree.filter.spatial.BBOX;
 import org.deegree.geometry.Envelope;
 import org.deegree.geometry.GeometryFactory;
-import org.deegree.protocol.wfs.transaction.action.IDGenMode;
 
 /**
  * Tests the query behaviour of the {@link SQLFeatureStore} for an AIXM configuration (relational mode).
@@ -40,6 +38,13 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         importGml( fs, "aixm/data/Donlon.xml", USE_EXISTING );
     }
 
+    public void testQueryVerticalStructure()
+                            throws Exception {
+        final Query query = new Query( VERTICAL_STRUCTURE_NAME, null, -1, -1, -1 );
+        final FeatureCollection fc = fs.query( query ).toCollection();
+        assertEquals( 20, fc.size() );
+    }
+
     public void testQueryVerticalStructureCrane5()
                             throws Exception {
         final Query query = buildGmlIdentifierQuery( "8c755520-b42b-11e3-a5e2-0800500c9a66", VERTICAL_STRUCTURE_NAME );
@@ -52,22 +57,6 @@ public class AixmQueryRelationalIT extends SQLFeatureStoreTestCase {
         final Query query = buildGmlIdentifierQuery( "010d8451-d751-4abb-9c71-f48ad024045b", AIRSPACE_NAME );
         final FeatureCollection fc = fs.query( query ).toCollection();
         assertEquals( 1, fc.size() );
-    }
-
-    public void testQueryByGmlIdentifierUnspecifiedFeatureType()
-                            throws Exception {
-        final Query query = buildGmlIdentifierQuery( "010d8451-d751-4abb-9c71-f48ad024045b", null );
-        final FeatureCollection fc = fs.query( query ).toCollection();
-        assertEquals( 1, fc.size() );
-    }
-
-    public void testQueryByGmlId()
-                            throws Exception {
-        final Filter filter = new IdFilter( "uuid.010d8451-d751-4abb-9c71-f48ad024045b" );
-        final Query query = new Query( null, filter, -1, -1, -1 );
-        final FeatureCollection fc = fs.query( query ).toCollection();
-        assertEquals( 1, fc.size() );
-        assertGmlEquals( fc.iterator().next(), "aixm/expected/airspace_eamm2.xml" );
     }
 
     public void testQueryFilterOnHybridProperty()

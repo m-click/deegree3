@@ -118,7 +118,11 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private final boolean nullEscalation;
 
+    private String gmlId;
+
     private boolean hasMoreRows;
+
+    private DeduplicationManager deduplicationManager;
 
     /**
      * Creates a new {@link FeatureBuilderRelational} instance.
@@ -157,35 +161,45 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     @Override
     public Feature buildFeature( final ResultSet rs, final FeatureType queryFt )
                             throws SQLException {
-
-        Feature feature = null;
         try {
-            final String gmlId = buildGmlId( rs );
-            if ( fs.getCache() != null ) {
-                feature = (Feature) fs.getCache().get( gmlId );
+            if ( gmlId == null ) {
+                gmlId = buildGmlId( rs );
             }
-            if ( feature == null ) {
-                LOG.debug( "Recreating feature '" + gmlId + "' from db (relational mode)." );
-                final FeatureType ft = disambiguateFeatureType( rs, queryFt );
-                final List<Property> props = buildProperties( rs, gmlId, ft );
-                feature = ft.newFeature( gmlId, props, null );
-                if ( fs.getCache() != null ) {
-                    fs.getCache().add( feature );
+            LOG.debug( "Recreating feature '" + gmlId + "' from db (relational mode)." );
+            final FeatureType ft = disambiguateFeatureType( rs, queryFt );
+            final List<Property> props = new ArrayList<Property>();
+            String currentGmlId = gmlId;
+            String lastGmlId = null;
+            deduplicationManager = new DeduplicationManager();
+            do {
+                props.addAll( buildProperties( rs, gmlId, ft ) );
+                hasMoreRows = rs.next();
+                if ( hasMoreRows ) {
+                    lastGmlId = gmlId;
+                    gmlId = buildGmlId( rs );
                 }
-            } else {
-                LOG.debug( "Cache hit." );
-            }
-            hasMoreRows = rs.next();
+            } while ( hasMoreRows && lastGmlId.equals( gmlId ) );
+            return ft.newFeature( currentGmlId, props, null );
         } catch ( Throwable t ) {
             hasMoreRows = false;
             LOG.error( t.getMessage(), t );
             throw new SQLException( t.getMessage(), t );
         }
-        return feature;
     }
 
+    @Override
     public boolean hasMoreRows() {
         return hasMoreRows;
+    }
+
+    public List<String> getOrderColumns() {
+        LOG.debug( "Order columns: " + selectManager.orderColumns );
+        return new ArrayList<String>( selectManager.orderColumns );
+    }
+
+    public List<String> getJoins() {
+        LOG.debug( "Joins: " + selectManager.joins );
+        return new ArrayList<String>( selectManager.joins );
     }
 
     private String buildGmlId( final ResultSet rs )
@@ -212,10 +226,17 @@ public class FeatureBuilderRelational implements FeatureBuilder {
 
     private List<Property> buildProperties( final ResultSet rs, final String gmlId, final FeatureType ft )
                             throws SQLException {
-        List<Property> props = new ArrayList<Property>();
-        for ( Mapping mapping : ftMapping.getMappings() ) {
+        final List<Property> props = new ArrayList<Property>();
+        for ( final Mapping mapping : ftMapping.getMappings() ) {
             if ( mapping.isSkipOnReconstruct() ) {
                 continue;
+            }
+            // deduplication of properties
+            if ( mapping.getJoinedTable() == null ) {
+                if ( deduplicationManager.isDeduplicated( mapping ) ) {
+                    continue;
+                }
+                deduplicationManager.setDeduplicated( mapping );
             }
             ValueReference propName = mapping.getPath();
             QName childEl = getChildElementStepAsQName( propName );
@@ -245,9 +266,6 @@ public class FeatureBuilderRelational implements FeatureBuilder {
     private void addProperties( List<Property> props, PropertyType pt, Mapping propMapping, ResultSet rs,
                                 String idPrefix )
                             throws SQLException {
-        if ( propMapping.isSkipOnReconstruct() ) {
-            return;
-        }
         final ParticleBuilder particleBuilder = new ParticleBuilder( fs, ftMapping, conn, nullEscalation );
         List<TypedObjectNode> particles = particleBuilder.build( propMapping, rs, selectManager, idPrefix );
         if ( particles.isEmpty() && pt.getMinOccurs() > 0 ) {
@@ -337,7 +355,6 @@ public class FeatureBuilderRelational implements FeatureBuilder {
                             String ns = ref.getNsContext().translateNamespacePrefixToUri( prefix );
                             qName = new QName( ns, step.getLocalName(), prefix );
                         }
-                        LOG.debug( "QName: " + qName );
                     }
                 }
             }

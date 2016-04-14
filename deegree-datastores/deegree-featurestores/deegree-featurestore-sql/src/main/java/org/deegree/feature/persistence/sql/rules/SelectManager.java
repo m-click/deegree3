@@ -1,5 +1,7 @@
 package org.deegree.feature.persistence.sql.rules;
 
+import static org.deegree.feature.persistence.sql.jaxb.FetchModeType.JOIN;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -43,6 +45,8 @@ class SelectManager {
 
     // key: mapping particle, value: corresponding table alias
     final Map<Mapping, String> mappingToTableAlias = new HashMap<Mapping, String>();
+
+    final Map<TableJoin, String> joinToTableAlias = new HashMap<TableJoin, String>();
 
     private String rootTable;
 
@@ -146,6 +150,10 @@ class SelectManager {
         return selectTermToResultSet;
     }
 
+    String getTableAlias( final TableJoin join ) {
+        return joinToTableAlias.get( join );
+    }
+
     @Override
     public String toString() {
         final StringBuilder sql = new StringBuilder( "SELECT " );
@@ -165,11 +173,18 @@ class SelectManager {
         return sql.toString();
     }
 
-    private void add( final Mapping mapping, final String currentTableAlias, final SQLFeatureStore fs ) {
-        if ( mapping.getJoinedTable() != null && !( mapping instanceof FeatureMapping ) ) {
-            addFromColumns( mapping.getJoinedTable(), currentTableAlias );
-            mappingToTableAlias.put( mapping, currentTableAlias );
+    private void add( final Mapping mapping, String currentTableAlias, final SQLFeatureStore fs ) {
+        if ( mapping.isSkipOnReconstruct() ) {
             return;
+        }
+        if ( mapping.getJoinedTable() != null && !( mapping instanceof FeatureMapping ) ) {
+            if ( mapping.getJoinedTable().get( 0 ).getFetchMode() == JOIN ) {
+                currentTableAlias = followJoins( mapping.getJoinedTable(), currentTableAlias );
+            } else {
+                addFromColumns( mapping.getJoinedTable(), currentTableAlias );
+                mappingToTableAlias.put( mapping, currentTableAlias );
+                return;
+            }
         }
         mappingToTableAlias.put( mapping, currentTableAlias );
         final ParticleConverter<?> particleConverter = fs.getConverter( mapping );
@@ -209,6 +224,7 @@ class SelectManager {
 
     private String followJoin( final TableJoin join, final String currentTableAlias ) {
         final String nextTableAlias = aliasManager.generateNew();
+        joinToTableAlias.put( join, nextTableAlias );
         final List<SQLIdentifier> fromColumns = join.getFromColumns();
         final List<SQLIdentifier> toColumns = join.getToColumns();
         final StringBuilder sql = new StringBuilder( "LEFT OUTER JOIN " );
@@ -233,6 +249,10 @@ class SelectManager {
             for ( final SQLIdentifier orderColumn : join.getOrderColumns() ) {
                 orderColumns.add( nextTableAlias + '.' + orderColumn.getName() );
             }
+        }
+        // key columns need to be selected to allow deduplication
+        for ( final SQLIdentifier keyColumn : join.getKeyColumnToGenerator().keySet() ) {
+            selectTerms.add( nextTableAlias + '.' + keyColumn.getName() );
         }
         return nextTableAlias;
     }

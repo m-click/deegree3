@@ -1104,7 +1104,8 @@ public class SQLFeatureStore implements FeatureStore {
 
             final TableAliasManager aliasManager = new TableAliasManager();
             final String tableAlias = aliasManager.getRootTableAlias();
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager, nullEscalation );
+            FeatureBuilderRelational builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager,
+                                                                             nullEscalation );
             List<String> columns = builder.getInitialSelectList();
             StringBuilder sql = new StringBuilder( "SELECT " );
             sql.append( columns.get( 0 ) );
@@ -1116,6 +1117,10 @@ public class SQLFeatureStore implements FeatureStore {
             sql.append( ftMapping.getFtTable() );
             sql.append( ' ' );
             sql.append( tableAlias );
+            for ( final String join : builder.getJoins() ) {
+                sql.append( ' ' );
+                sql.append( join );
+            }
             sql.append( " WHERE " );
             boolean first = true;
             for ( IdAnalysis idKernel : idKernels ) {
@@ -1134,6 +1139,17 @@ public class SQLFeatureStore implements FeatureStore {
                 }
                 sql.append( ")" );
                 first = false;
+            }
+            if ( !builder.getOrderColumns().isEmpty() ) {
+                sql.append( " ORDER BY " );
+                first = true;
+                for ( final String orderColumn : builder.getOrderColumns() ) {
+                    if ( !first ) {
+                        sql.append( ',' );
+                    }
+                    first = false;
+                    sql.append( orderColumn );
+                }
             }
             LOG.debug( "SQL: {}", sql );
 
@@ -1180,7 +1196,7 @@ public class SQLFeatureStore implements FeatureStore {
             long begin = System.currentTimeMillis();
             final TableAliasManager aliasManager = new TableAliasManager();
             String tableAlias = aliasManager.getRootTableAlias();
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager, nullEscalation );
+            FeatureBuilderRelational builder = new FeatureBuilderRelational( this, ftMapping, conn, aliasManager, nullEscalation );
             List<String> columns = builder.getInitialSelectList();
             StringBuilder sql = new StringBuilder( "SELECT " );
             sql.append( columns.get( 0 ) );
@@ -1192,6 +1208,10 @@ public class SQLFeatureStore implements FeatureStore {
             sql.append( ftMapping.getFtTable() );
             sql.append( ' ' );
             sql.append( tableAlias );
+            for ( final String join : builder.getJoins() ) {
+                sql.append( ' ' );
+                sql.append( join );
+            }
             sql.append( " WHERE " );
             boolean firstCol = true;
             for ( final Pair<SQLIdentifier, BaseType> fidColumn : fidMapping.getColumns() ) {
@@ -1203,6 +1223,17 @@ public class SQLFeatureStore implements FeatureStore {
                 sql.append( fidColumn.first );
                 sql.append( "=?" );
                 firstCol = false;
+            }
+            if ( !builder.getOrderColumns().isEmpty() ) {
+                sql.append( " ORDER BY " );
+                boolean first = true;
+                for ( final String orderColumn : builder.getOrderColumns() ) {
+                    if ( !first ) {
+                        sql.append( ',' );
+                    }
+                    first = false;
+                    sql.append( orderColumn );
+                }
             }
             LOG.debug( "SQL: {}", sql );
             stmt = conn.prepareStatement( sql.toString() );
@@ -1477,7 +1508,7 @@ public class SQLFeatureStore implements FeatureStore {
             LOG.debug( "WHERE clause: " + wb.getWhere() );
             LOG.debug( "ORDER BY clause: " + wb.getOrderBy() );
 
-            FeatureBuilder builder = new FeatureBuilderRelational( this, ftMapping, conn, wb.getAliasManager(),
+            FeatureBuilderRelational builder = new FeatureBuilderRelational( this, ftMapping, conn, wb.getAliasManager(),
                                                                    nullEscalation );
             List<String> columns = builder.getInitialSelectList();
 
@@ -1506,6 +1537,10 @@ public class SQLFeatureStore implements FeatureStore {
                     sql.append( join.getSQLJoinCondition() );
                 }
             }
+            for ( final String join : builder.getJoins() ) {
+                sql.append( ' ' );
+                sql.append( join );
+            }
 
             if ( wb.getWhere() != null ) {
                 if ( blobMapping != null ) {
@@ -1526,9 +1561,22 @@ public class SQLFeatureStore implements FeatureStore {
                 sql.append( ftMapping.getTypeColumn().getName() );
                 sql.append( "=?" );
             }
-            if ( wb.getOrderBy() != null ) {
+            if ( wb.getOrderBy() != null || !builder.getOrderColumns().isEmpty() ) {
                 sql.append( " ORDER BY " );
-                sql.append( wb.getOrderBy().getSQL() );
+                boolean first = true;
+                for ( final String orderColumn : builder.getOrderColumns() ) {
+                    if ( !first ) {
+                        sql.append( ',' );
+                    }
+                    first = false;
+                    sql.append( orderColumn );
+                }
+                if ( wb.getOrderBy() != null ) {
+                    if ( !first ) {
+                        sql.append( ',' );
+                    }
+                    sql.append( wb.getOrderBy().getSQL() );
+                }
             }
 
             LOG.debug( "SQL: {}", sql );
