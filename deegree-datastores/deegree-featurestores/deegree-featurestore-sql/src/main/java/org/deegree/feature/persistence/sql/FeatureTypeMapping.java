@@ -242,10 +242,12 @@ public class FeatureTypeMapping {
                                + ", different tables: " + table + " vs. " + other.table;
             throw new IllegalArgumentException( msg );
         }
-        // TODO FIDMapping
-        if ( other.typeColumn != null ) {
-            typeColumn = other.typeColumn;
+        if ( !equalsNullSafe( typeColumn, other.typeColumn ) ) {
+            final String msg = "Cannot merge feature type mappings for " + ftName + " and " + other.ftName
+                               + ", different typeColumns: " + typeColumn + " vs. " + other.typeColumn;
+            throw new IllegalArgumentException( msg );
         }
+        // TODO FIDMapping
         final Map<QName, Mapping> mergedProperties = mergeProperties( other, ft );
         propToMapping.clear();
         propToMapping.putAll( mergedProperties );

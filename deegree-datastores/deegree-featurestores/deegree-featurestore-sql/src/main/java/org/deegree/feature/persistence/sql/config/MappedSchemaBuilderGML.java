@@ -331,12 +331,17 @@ public class MappedSchemaBuilderGML extends AbstractMappedSchemaBuilder {
     private Collection<FeatureTypeMapping> buildFtMappings( FeatureTypeMappingJAXB ftMappingConf )
                             throws FeatureStoreException {
 
-        final Collection<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
+        final Collection<QName> ftNamesIncludingSubstitutions = getFeatureTypesIncludingSubstitions( ftMappingConf.getName() );
         SQLIdentifier typeColumn = null;
         if ( ftMappingConf.getTypeColumn() != null ) {
             typeColumn = new SQLIdentifier( ftMappingConf.getTypeColumn() );
         }
-        final Collection<QName> ftNamesIncludingSubstitutions = getFeatureTypesIncludingSubstitions( ftMappingConf.getName() );
+        if ( ftNamesIncludingSubstitutions.size() > 1 && typeColumn == null ) {
+            final String msg = "Ambigous feature type mapping, but no typeColumn for disambiguation specified. Feature type name: "
+                               + ftMappingConf.getName();
+            throw new FeatureStoreException( msg );
+        }
+        final Collection<FeatureTypeMapping> ftMappings = new ArrayList<FeatureTypeMapping>();
         for ( final QName ftName : ftNamesIncludingSubstitutions ) {
             TableName ftTable = new TableName( ftMappingConf.getTable() );
             FIDMapping fidMapping = buildFIDMapping( ftTable, ftName, ftMappingConf.getFIDMapping() );

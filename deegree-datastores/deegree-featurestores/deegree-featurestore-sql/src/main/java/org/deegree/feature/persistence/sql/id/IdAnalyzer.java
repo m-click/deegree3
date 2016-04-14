@@ -40,6 +40,7 @@ import java.util.Map;
 
 import javax.xml.namespace.QName;
 
+import org.apache.xerces.xs.XSElementDeclaration;
 import org.deegree.feature.persistence.sql.FeatureTypeMapping;
 import org.deegree.feature.persistence.sql.MappedAppSchema;
 import org.deegree.feature.types.FeatureType;
@@ -70,18 +71,41 @@ public class IdAnalyzer {
      */
     public IdAnalyzer( MappedAppSchema schema ) {
         this.schema = schema;
+        final FeatureTypeMapping rootFtMapping = getRootFeatureTypeMapping( schema );
+        if ( rootFtMapping != null ) {
+            prefixToFt.put( rootFtMapping.getFidMapping().getPrefix(),
+                            schema.getFeatureType( rootFtMapping.getFeatureType() ) );
+            return;
+        }
         for ( FeatureType ft : schema.getFeatureTypes() ) {
-            if ( !ft.isAbstract() ) {
-                FeatureTypeMapping ftMapping = schema.getFtMapping( ft.getName() );
-                if ( ftMapping != null ) {
-                    FIDMapping fidMapping = ftMapping.getFidMapping();
-                    if ( fidMapping != null ) {
+            FeatureTypeMapping ftMapping = schema.getFtMapping( ft.getName() );
+            if ( ftMapping != null ) {
+                FIDMapping fidMapping = ftMapping.getFidMapping();
+                if ( fidMapping != null ) {
+                    if ( !prefixToFt.containsKey( fidMapping.getPrefix() ) ) {
                         LOG.debug( fidMapping.getPrefix() + " -> " + ft.getName() );
                         prefixToFt.put( fidMapping.getPrefix(), ft );
+                    } else {
+                        final String msg = "Two feature type mappings are using the same feature id prefix: "
+                                           + ft.getName()
+                                           + " and "
+                                           + prefixToFt.get( fidMapping.getPrefix() ).getName()
+                                           + ". In schema-driven mode, please configure common base mapping for gml:AbstractFeature."
+                                           + " In table-driven mode, this is not supported.";
+                        throw new IllegalArgumentException( msg );
                     }
                 }
             }
         }
+    }
+
+    private FeatureTypeMapping getRootFeatureTypeMapping( final MappedAppSchema schema ) {
+        if ( schema.getGMLSchema() == null ) {
+            return null;
+        }
+        final XSElementDeclaration abstractFeatureElDecl = schema.getGMLSchema().getAbstractFeatureElementDeclaration();
+        final QName ftName = new QName( abstractFeatureElDecl.getNamespace(), abstractFeatureElDecl.getName() );
+        return schema.getFtMapping( ftName );
     }
 
     public IdAnalysis analyze( String featureOrGeomId ) {
