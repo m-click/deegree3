@@ -689,11 +689,10 @@ public abstract class AbstractGMLObjectReader extends XMLAdapter {
         }
         case CONTENTTYPE_SIMPLE: {
             int eventType = 0;
+            final StringBuilder stringBuilder = new StringBuilder();
             while ( ( eventType = xmlStream.next() ) != END_ELEMENT ) {
                 if ( eventType == CDATA || eventType == CHARACTERS ) {
-                    PrimitiveValue pb = new PrimitiveValue( xmlStream.getText(),
-                                                            new PrimitiveType( xsdValueType.getSimpleType() ) );
-                    children.add( pb );
+                    stringBuilder.append(xmlStream.getText());
                 } else if ( eventType == START_ELEMENT ) {
                     QName childElName = xmlStream.getName();
                     if ( !childElementDecls.containsKey( childElName ) ) {
@@ -701,6 +700,12 @@ public abstract class AbstractGMLObjectReader extends XMLAdapter {
                         throw new XMLParsingException( xmlStream, msg );
                     }
                 }
+            }
+            final String text = stringBuilder.toString();
+            if ( !text.isEmpty() ) {
+                PrimitiveValue pb = new PrimitiveValue( text,
+                                                        new PrimitiveType( xsdValueType.getSimpleType() ) );
+                children.add( pb );
             }
             break;
         }
